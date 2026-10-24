@@ -104,7 +104,11 @@ export const PALETTE = [
   { color: '#A78BFA', ink: '#1C1235', name: 'Purple' },
   { color: '#FF7A59', ink: '#2A0E06', name: 'Coral' },
   { color: '#2BC4C4', ink: '#062626', name: 'Teal' },
-  { color: '#C9D64A', ink: '#1E2406', name: 'Lime' }
+  { color: '#C9D64A', ink: '#1E2406', name: 'Lime' },
+  { color: '#D9363E', ink: '#FFFFFF', name: 'Red' },
+  { color: '#7B4AE2', ink: '#FFFFFF', name: 'Dark purple' },
+  { color: '#11808A', ink: '#FFFFFF', name: 'Petrol' },
+  { color: '#D0216A', ink: '#FFFFFF', name: 'Dark pink' }
 ];
 
 export const INSTRUMENTS = ['Drums', 'Vocals', 'Guitar', 'Bass', 'Keys', 'Sound (FOH)', 'Light', 'Merch', 'Tour manager', 'Driver'];

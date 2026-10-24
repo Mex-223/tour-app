@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.2.1';
-const NOTES = 'Fix: creating or joining a band no longer jumps back to the start.';
+const VERSION = '1.2.2';
+const NOTES = 'New band colours: red, dark purple, petrol and dark pink.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
