@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.2.2';
-const NOTES = 'New band colours: red, dark purple, petrol and dark pink.';
+const VERSION = '1.2.3';
+const NOTES = 'New members now see "Got an invite?" first. Paste the invite link to join.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [

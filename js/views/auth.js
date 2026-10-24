@@ -112,16 +112,29 @@ export function createBandForm(title = 'Create a band') {
   </form>`;
 }
 
+export function joinCodeForm() {
+  return `<form data-form="join-code" class="form card pad">
+    <h2 class="h2">Got an invite?</h2>
+    <p class="muted small">Paste the invite link your band's MGMT sent you (WhatsApp, email…).</p>
+    <label class="lbl">Invite link or code<input type="text" name="code" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://mex-223.github.io/tour-app/?invite=…"></label>
+    <button class="btn-primary" type="submit" ${state.busy ? 'disabled' : ''}>Join band</button>
+  </form>`;
+}
+
 export function renderWelcome() {
   return `<main id="main" class="auth wide">
     ${logo}<h1>Hi ${esc(me.name)}!</h1>
-    <p class="muted">You're not in a band yet.</p>
+    <p class="muted">You're not in a band in the app yet.</p>
     ${msg()}
-    ${createBandForm('Start a band')}
-    <div class="card pad stack-8">
-      <h2 class="h2">Joining a band?</h2>
-      <p class="muted">Ask the band's MGMT for the invite link and open it on this phone.</p>
-    </div>
+    ${joinCodeForm()}
+    <p class="muted small">No link? Ask whoever manages your band in the app to send you one (Profile → band → Invite people).</p>
+    <details class="sec">
+      <summary><span class="sec-title">Start a new band instead</span>${icons.chevronDown(18)}</summary>
+      <div class="sec-body">
+        <p class="form-info">Only if your band isn't in the app yet. If a bandmate already created it, ask them for the invite link, otherwise you'll end up with two copies of the same band.</p>
+        ${createBandForm('New band')}
+      </div>
+    </details>
     <button type="button" class="link-btn muted" data-action="sign-out">${icons.close(16)} Sign out</button>
   </main>`;
 }

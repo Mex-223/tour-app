@@ -255,6 +255,22 @@ const forms = {
     await backend.updateMyMemberInfo(me.id, bands.map((b) => b.id), info);
     state.authInfo = 'Saved.';
   }),
+  'join-code': (f) => {
+    const raw = String(f.get('code') || '').trim();
+    const m = raw.match(/[?&]invite=([a-z0-9]{6,20})/i) || raw.match(/^([a-z0-9]{6,20})$/i);
+    if (!m) {
+      state.authError = 'That doesn\'t look like an invite link. Copy the whole link from the message and try again.';
+      render();
+      return;
+    }
+    const code = m[1].toLowerCase();
+    try { localStorage.setItem(INVITE_KEY, code); } catch (e) { /* ignore */ }
+    state.pendingInvite = code;
+    state.invite = undefined;
+    state.authError = null;
+    state.formDirty = false;
+    render();
+  },
   'create-band': (f) => run(async () => {
     const id = await backend.createBand(me.id, { name: f.get('name').trim(), color: f.get('color') }, me);
     location.hash = `#/band/${id}`;
