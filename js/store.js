@@ -93,6 +93,13 @@ export function personById(uid) {
 }
 export const eventById = (id) => events.find((e) => e.id === id);
 export const isMgmt = (bandId) => me.bands[bandId] === 'mgmt';
+// The band's lead (whoever created it, or got it handed over). Always MGMT, can't be demoted by others.
+export const ownerOf = (bandId) => (bands.find((b) => b.id === bandId) || {}).createdBy;
+export const isOwner = (bandId) => !!me.id && ownerOf(bandId) === me.id;
+export function roleName(bandId, uid, role) {
+  if (ownerOf(bandId) === uid) return 'Owner';
+  return role === 'mgmt' ? 'MGMT' : 'Member';
+}
 export const mgmtBands = () => bands.filter((b) => isMgmt(b.id));
 
 const byDateTime = (a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99'));
@@ -140,7 +147,7 @@ export function viewBands() {
 }
 
 export function roleLabel() {
-  if (state.view !== 'me' && state.view !== 'all') return `${me.name} · ${isMgmt(state.view) ? 'MGMT' : 'Member'}`;
+  if (state.view !== 'me' && state.view !== 'all') return `${me.name} · ${roleName(state.view, me.id, me.bands[state.view])}`;
   return me.instrument ? `${me.name} · ${me.instrument}` : me.name;
 }
 

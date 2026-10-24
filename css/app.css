@@ -72,6 +72,7 @@ main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4p
 
 /* ---------- Tags & badges ---------- */
 .tag { flex: none; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 3px 7px; border-radius: 6px; text-transform: uppercase; white-space: nowrap; }
+.tag-plain.owner { background: #3A2C10; color: var(--amber); }
 .tag-plain { flex: none; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 4px 7px; border-radius: 6px; background: var(--surface-2); color: var(--muted); text-transform: uppercase; }
 .badges { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 2px; }
 .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; }

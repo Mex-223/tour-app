@@ -205,6 +205,12 @@ const actions = {
   },
   'copy-invite': (el) => { copyText(inviteUrl(bandById(el.dataset.band).inviteCode)); return 'none'; },
   'set-role': (el) => { run(() => backend.setMemberRole(el.dataset.band, el.dataset.uid, el.dataset.role)); return 'none'; },
+  'make-owner': (el) => {
+    const band = bandById(el.dataset.band);
+    if (!confirm(`Make ${el.dataset.name || 'this person'} the owner of ${band.name}? You'll stay MGMT, but they will lead the band and could change your role.`)) return 'none';
+    run(async () => { await backend.transferOwnership(band.id, el.dataset.uid); toast('Ownership handed over.'); });
+    return 'none';
+  },
   'remove-member': (el) => {
     if (!confirm(`Remove ${el.dataset.name || 'this person'} from ${bandById(el.dataset.band).name}?`)) return 'none';
     run(() => backend.removeMember(el.dataset.band, el.dataset.uid));
@@ -213,6 +219,11 @@ const actions = {
   'leave-band': (el) => {
     if (!confirm(`Leave ${el.dataset.name}? You'll need a new invite link to come back.`)) return 'none';
     run(async () => { await backend.leaveBand(me.id, el.dataset.band); location.hash = '#/me'; });
+    return 'none';
+  },
+  'delete-band': (el) => {
+    if (!confirm(`Delete ${el.dataset.name} with all its events? This can't be undone.`)) return 'none';
+    run(async () => { await backend.deleteBand(me.id, el.dataset.band); location.hash = '#/me'; toast('Band deleted.'); });
     return 'none';
   },
   'cancel-edit': () => { state.draft = null; state.formDirty = false; return 'nav'; },

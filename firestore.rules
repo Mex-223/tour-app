@@ -8,6 +8,8 @@ rules_version = '2';
 // - Your profile (users/{you}) is only readable and writable by you.
 // - You only see a band (and its members and events) if you are a member.
 // - Only MGMT of a band can change events, the band, roles and invite links.
+// - The band's Owner (field createdBy) can't be demoted or removed by anyone,
+//   and only the Owner can hand the lead over to another MGMT.
 // - You can join a band only with a valid invite code, and only as "member".
 // - You can always change your own name/instrument or leave a band.
 
@@ -19,6 +21,8 @@ service cloud.firestore {
     function isMember(bandId) { return signedIn() && exists(memberDoc(bandId)); }
     function isMgmt(bandId) { return isMember(bandId) && get(memberDoc(bandId)).data.role == 'mgmt'; }
     function onlyChanges(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
+    function ownerOf(bandId) { return get(/databases/$(database)/documents/bands/$(bandId)).data.createdBy; }
+    function isOwner(bandId) { return signedIn() && ownerOf(bandId) == request.auth.uid; }
 
     // ---------- Profiles ----------
     match /users/{uid} {
@@ -33,10 +37,15 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 40;
-      allow update: if isMgmt(bandId)
-        && request.resource.data.createdBy == resource.data.createdBy
-        && onlyChanges(['name', 'color', 'inviteCode']);
-      allow delete: if isMgmt(bandId);
+      // MGMT can change name, colour and the invite link.
+      // Only the Owner can hand over the lead (createdBy), and only to another MGMT.
+      allow update: if (isMgmt(bandId)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && onlyChanges(['name', 'color', 'inviteCode']))
+        || (isOwner(bandId)
+          && onlyChanges(['createdBy'])
+          && get(/databases/$(database)/documents/bands/$(bandId)/members/$(request.resource.data.createdBy)).data.role == 'mgmt');
+      allow delete: if isOwner(bandId);
 
       // ---------- Members ----------
       match /members/{uid} {
@@ -55,12 +64,15 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.bandId == bandId)
         );
 
-        // MGMT can change roles; everyone can update their own name/instrument (not their role).
-        allow update: if isMgmt(bandId)
+        // MGMT can change roles of everyone except the Owner;
+        // everyone can update their own name/instrument (not their role).
+        allow update: if (isMgmt(bandId) && uid != ownerOf(bandId))
           || (signedIn() && request.auth.uid == uid && onlyChanges(['name', 'instrument']));
 
-        // MGMT can remove people; everyone can leave.
-        allow delete: if isMgmt(bandId) || (signedIn() && request.auth.uid == uid);
+        // MGMT can remove people (not the Owner); everyone except the Owner can leave.
+        // (When the Owner deletes the whole band, its member list goes with it.)
+        allow delete: if (isOwner(bandId) && !existsAfter(/databases/$(database)/documents/bands/$(bandId)))
+          || (uid != ownerOf(bandId) && (isMgmt(bandId) || (signedIn() && request.auth.uid == uid)));
       }
 
       // ---------- Events ----------

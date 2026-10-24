@@ -1,6 +1,6 @@
 // Shared building blocks: top bar, band switcher, bottom nav, event rows.
 import { TYPE_LABEL, MISSING_LABEL } from './data.js';
-import { state, viewLabel, roleLabel, me, bands, bandById, clashDates, chipsActive } from './store.js';
+import { state, viewLabel, roleLabel, me, bands, bandById, clashDates, chipsActive, roleName } from './store.js';
 import { icons } from './icons.js';
 import { esc, weekday, dayNum } from './utils.js';
 
@@ -52,7 +52,7 @@ export function sidebar(active) {
       <span class="side-h">View</span>
       ${view('me', 'My view', multi)}
       ${view('all', 'All bands', 'background:#3A3F46')}
-      ${myBands.map((b) => view(b.id, b.name, `background:${b.color}`, me.bands[b.id] === 'mgmt' ? 'MGMT' : '')).join('')}
+      ${myBands.map((b) => view(b.id, b.name, `background:${b.color}`, me.bands[b.id] === 'mgmt' ? roleName(b.id, me.id, 'mgmt') : '')).join('')}
     </nav>
     <nav class="side-group" aria-label="Main">
       <span class="side-h">App</span>
@@ -83,7 +83,7 @@ export function sheet() {
     ${opt('me', 'My view', 'Everything I am part of, across all bands', multi)}
     ${opt('all', 'All bands', 'Everything my bands have planned', 'background:#3A3F46')}
     <div class="sheet-sep">Bands</div>
-    ${myBands.map((b) => opt(b.id, b.name, me.bands[b.id] === 'mgmt' ? 'MGMT' : 'Member', `background:${b.color}`)).join('')}
+    ${myBands.map((b) => opt(b.id, b.name, roleName(b.id, me.id, me.bands[b.id]), `background:${b.color}`)).join('')}
     <a class="sheet-link" href="#/me">Manage bands, invites &amp; profile</a>
   </div>`;
 }

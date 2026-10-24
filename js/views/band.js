@@ -1,5 +1,5 @@
 // BAND — invite link, members & roles, name & colour (MGMT), leave band.
-import { state, me, bands, isMgmt, membersOf } from '../store.js';
+import { state, me, bands, isMgmt, isOwner, ownerOf, membersOf, roleName } from '../store.js';
 import { esc } from '../utils.js';
 import { icons } from '../icons.js';
 import { colorPicker } from './auth.js';
@@ -38,17 +38,25 @@ export function renderBand(id) {
          <button type="button" class="btn-primary" data-action="new-invite" data-band="${esc(b.id)}" ${state.busy ? 'disabled' : ''}>Create invite link</button>`}
     </section>` : `<p class="muted small">Ask the band's MGMT for an invite link if someone else should join.</p>`;
 
-  const rows = members.map((m) => {
+  const owner = ownerOf(b.id);
+  const iAmOwner = isOwner(b.id);
+  const rows = members.slice().sort((x, y) => (x.uid === owner ? -1 : y.uid === owner ? 1 : 0)).map((m) => {
     const self = m.uid === me.id;
-    const actions = mgmt && !self ? `<div class="btn-row small-row">
+    const isTheOwner = m.uid === owner;
+    // Nobody can change or remove the owner. MGMT manage everyone else.
+    const canManage = mgmt && !self && !isTheOwner;
+    const handOver = iAmOwner && !self && m.role === 'mgmt'
+      ? `<button type="button" class="btn-small" data-action="make-owner" data-band="${esc(b.id)}" data-uid="${esc(m.uid)}" data-name="${esc(m.name || '')}">Make owner</button>` : '';
+    const actions = canManage ? `<div class="btn-row small-row">
         <button type="button" class="btn-small" data-action="set-role" data-band="${esc(b.id)}" data-uid="${esc(m.uid)}" data-role="${m.role === 'mgmt' ? 'member' : 'mgmt'}">${m.role === 'mgmt' ? 'Make member' : 'Make MGMT'}</button>
+        ${handOver}
         <button type="button" class="btn-small danger" data-action="remove-member" data-band="${esc(b.id)}" data-uid="${esc(m.uid)}" data-name="${esc(m.name || '')}">Remove</button>
       </div>` : '';
     return `<div class="person col">
       <div class="row-inline">
         <span class="avatar" aria-hidden="true">${esc((m.name || '?')[0].toUpperCase())}</span>
         <span class="stack-2 grow"><span class="person-name">${esc(m.name || 'Someone')}${self ? ' (you)' : ''}</span><span class="muted small">${esc(m.instrument || '')}</span></span>
-        <span class="tag-plain">${m.role === 'mgmt' ? 'MGMT' : 'Member'}</span>
+        <span class="tag-plain ${isTheOwner ? 'owner' : ''}">${roleName(b.id, m.uid, m.role)}</span>
       </div>${actions}
     </div>`;
   }).join('');
@@ -62,11 +70,11 @@ export function renderBand(id) {
       </form></div>
     </details>` : '';
 
-  const leaveBlocked = mgmt && mgmtCount <= 1 && members.length > 1;
+  const leaveBlocked = members.length > 1 && (iAmOwner || (mgmt && mgmtCount <= 1));
   return `<header class="head" style="--band:${esc(b.color)}">
       <div class="topbar">
         <a class="icon-btn back" href="#/me" aria-label="Back">${icons.chevronLeft()}</a>
-        <span class="tag" style="background:${esc(b.color)};color:${esc(b.ink)}">${mgmt ? 'You are MGMT' : 'Member'}</span>
+        <span class="tag" style="background:${esc(b.color)};color:${esc(b.ink)}">${iAmOwner ? 'You are the owner' : mgmt ? 'You are MGMT' : 'Member'}</span>
       </div>
       <div class="title-row"><h1>${esc(b.name)}</h1></div>
     </header>
@@ -77,8 +85,11 @@ export function renderBand(id) {
       <h2 class="section-h">Members · ${members.length}</h2>
       ${rows}
       ${settings}
-      ${leaveBlocked
-        ? '<p class="muted small">You\'re the only MGMT. Make someone else MGMT before you leave this band.</p>'
+      <p class="muted small">Owner: leads the band, can't be changed or removed by others, and can hand over the lead. MGMT: plans events, invites people and manages members. Member: sees everything.</p>
+      ${iAmOwner && members.length <= 1
+        ? `<button type="button" class="btn-outline danger" data-action="delete-band" data-band="${esc(b.id)}" data-name="${esc(b.name)}">Delete ${esc(b.name)}</button>`
+        : leaveBlocked
+        ? `<p class="muted small">${iAmOwner ? 'You\'re the owner. Make another MGMT the owner before you leave this band.' : 'You\'re the only MGMT. Make someone else MGMT before you leave this band.'}</p>`
         : `<button type="button" class="btn-outline danger" data-action="leave-band" data-band="${esc(b.id)}" data-name="${esc(b.name)}">Leave ${esc(b.name)}</button>`}
     </main>`;
 }

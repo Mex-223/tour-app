@@ -161,14 +161,28 @@ export const backend = {
     return id;
   },
   async updateBand(b, data) { if (!isMgmt(b)) deny(); Object.assign(db.bands[b], clone(data)); changed(); },
-  async setMemberRole(b, u, role) { if (!isMgmt(b)) deny(); db.members[b][u].role = role; changed(); },
-  async removeMember(b, u) { if (!isMgmt(b) && u !== uid()) deny(); delete db.members[b][u]; changed(); },
+  async transferOwnership(b, u) {
+    if (db.bands[b].createdBy !== uid() || !db.members[b][u] || db.members[b][u].role !== 'mgmt') deny();
+    db.bands[b].createdBy = u; changed();
+  },
+  async setMemberRole(b, u, role) { if (!isMgmt(b) || db.bands[b].createdBy === u) deny(); db.members[b][u].role = role; changed(); },
+  async removeMember(b, u) {
+    if (db.bands[b].createdBy === u || (!isMgmt(b) && u !== uid())) deny();
+    delete db.members[b][u]; changed();
+  },
   async updateMyMemberInfo(u, bandIds, info) {
     bandIds.forEach((b) => { if (db.members[b] && db.members[b][u]) Object.assign(db.members[b][u], info); });
     changed();
   },
   async leaveBand(u, b) {
     if (db.members[b]) delete db.members[b][u];
+    const p = db.users[u];
+    if (p) p.bandIds = (p.bandIds || []).filter((x) => x !== b);
+    changed();
+  },
+  async deleteBand(u, b) {
+    if (db.bands[b].createdBy !== u) deny();
+    delete db.bands[b]; delete db.members[b]; delete db.events[b];
     const p = db.users[u];
     if (p) p.bandIds = (p.bandIds || []).filter((x) => x !== b);
     changed();

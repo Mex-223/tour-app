@@ -1,5 +1,5 @@
 // PEOPLE — band members and venue contacts for the current view.
-import { viewBands, bandById, state, me, events, membersOf } from '../store.js';
+import { viewBands, bandById, state, me, events, membersOf, roleName } from '../store.js';
 import { topBar, bandTag } from '../components.js';
 import { icons } from '../icons.js';
 import { esc, isDialable, todayISO, fmtDay } from '../utils.js';
@@ -16,7 +16,7 @@ export function renderPeople() {
   }));
   const members = Object.values(people).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((p) => {
     const roles = p.roles.map((r) =>
-      `<span class="mini-role" style="--band:${esc(bandById(r.band).color)}">${esc(bandById(r.band).name)} · ${r.role === 'mgmt' ? 'MGMT' : 'Member'}</span>`).join('');
+      `<span class="mini-role" style="--band:${esc(bandById(r.band).color)}">${esc(bandById(r.band).name)} · ${roleName(r.band, p.uid, r.role)}</span>`).join('');
     return `<div class="person">
       <span class="avatar" aria-hidden="true">${esc((p.name || '?')[0].toUpperCase())}</span>
       <span class="stack-2 grow"><span class="person-name">${esc(p.name || 'Someone')}${p.uid === me.id ? ' (you)' : ''}</span>${p.instrument ? `<span class="muted small">${esc(p.instrument)}</span>` : ''}<span class="mini-roles">${roles}</span></span>

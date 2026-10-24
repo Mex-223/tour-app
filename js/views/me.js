@@ -1,5 +1,5 @@
 // PROFILE — my name, my bands, create a band, sign out.
-import { state, me, bands, isMgmt, membersOf } from '../store.js';
+import { state, me, bands, isMgmt, membersOf, roleName } from '../store.js';
 import { esc } from '../utils.js';
 import { icons } from '../icons.js';
 import { instrumentOptions, createBandForm } from './auth.js';
@@ -8,7 +8,7 @@ export function renderMe() {
   const bandRows = bands.map((b) => `<a class="person" href="#/band/${esc(b.id)}">
       <span class="sheet-dot" style="background:${esc(b.color)}" aria-hidden="true"></span>
       <span class="stack-2 grow"><span class="person-name">${esc(b.name)}</span>
-      <span class="muted small">${isMgmt(b.id) ? 'MGMT' : 'Member'} · ${membersOf(b.id).length} people</span></span>
+      <span class="muted small">${roleName(b.id, me.id, me.bands[b.id])} · ${membersOf(b.id).length} people</span></span>
       ${icons.chevronRight(18)}
     </a>`).join('');
 

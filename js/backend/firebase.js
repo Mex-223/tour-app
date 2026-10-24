@@ -83,6 +83,7 @@ export const backend = {
     return ref.id;
   },
   async updateBand(bandId, data) { w(updateDoc(bandRef(bandId), data)); },
+  async transferOwnership(bandId, uid) { w(updateDoc(bandRef(bandId), { createdBy: uid })); },
   async setMemberRole(bandId, uid, role) { w(updateDoc(memberRef(bandId, uid), { role })); },
   async removeMember(bandId, uid) { w(deleteDoc(memberRef(bandId, uid))); },
   async updateMyMemberInfo(uid, bandIds, info) {
@@ -91,6 +92,14 @@ export const backend = {
   async leaveBand(uid, bandId) {
     const batch = writeBatch(db);
     batch.delete(memberRef(bandId, uid));
+    batch.set(userRef(uid), { bandIds: arrayRemove(bandId) }, { merge: true });
+    w(batch.commit());
+  },
+  // Owner alone in a band: remove the band completely.
+  async deleteBand(uid, bandId) {
+    const batch = writeBatch(db);
+    batch.delete(memberRef(bandId, uid));
+    batch.delete(bandRef(bandId));
     batch.set(userRef(uid), { bandIds: arrayRemove(bandId) }, { merge: true });
     w(batch.commit());
   },

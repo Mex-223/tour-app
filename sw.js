@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.3.0';
-const NOTES = 'Laptop layout: sidebar, big calendar with event names, day details on the side.';
+const VERSION = '1.4.0';
+const NOTES = 'New: band Owner role. MGMT can no longer change or remove the owner.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
