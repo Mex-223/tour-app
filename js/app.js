@@ -7,6 +7,7 @@ import { renderSchedule, shiftMonth, gotoDate } from './views/schedule.js';
 import { renderDay } from './views/day.js';
 import { renderPeople } from './views/people.js';
 import { renderLater } from './views/later.js';
+import { initUpdates, currentVersion } from './updates.js';
 
 const app = document.getElementById('app');
 const TABS = ['today', 'schedule', 'people', 'money', 'docs'];
@@ -36,6 +37,9 @@ function render() {
 
   const main = document.getElementById('main');
   if (main) main.scrollTop = keepScroll;
+
+  const vEl = document.getElementById('app-version');
+  if (vEl) currentVersion().then((v) => { if (v && vEl.isConnected) vEl.textContent = `App version ${v}`; });
   lastHash = location.hash;
 
   if (state.sheetOpen) {
@@ -97,9 +101,5 @@ window.addEventListener('hashchange', () => {
 
 render();
 
-// Offline support (only works when served over https or localhost).
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => { /* offline mode not available */ });
-  });
-}
+// Offline copy + optional updates (banner: Update / Later).
+initUpdates();

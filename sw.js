@@ -1,7 +1,17 @@
-// Service worker: makes the app open offline.
-// Strategy: try the network first (so you always get the newest version),
-// fall back to the saved copy when there is no signal.
-const CACHE = 'tour-app-v1';
+// Service worker: keeps a saved copy of the app on the phone.
+//
+// How updates work:
+// - The app always opens from the saved copy (fast, works offline).
+// - When a new version is on GitHub, it downloads quietly in the background
+//   and waits. The app then shows "New version ready · Update / Later".
+// - Nothing changes until someone taps Update.
+//
+// RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
+// what tells phones there is something new.
+const VERSION = '1.1.0';
+const NOTES = 'Updates are now optional: you choose when to update.';
+
+const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
   './',
   './index.html',
@@ -13,6 +23,7 @@ const SHELL = [
   './js/utils.js',
   './js/icons.js',
   './js/components.js',
+  './js/updates.js',
   './js/views/today.js',
   './js/views/schedule.js',
   './js/views/day.js',
@@ -25,15 +36,24 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
-  self.skipWaiting();
+  // Download a complete, fresh copy of the new version. It waits until the user taps Update.
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => cache.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' }))))
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('tour-app-') && k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+  const msg = event.data || {};
+  if (msg.type === 'SKIP_WAITING') self.skipWaiting();
+  if (msg.type === 'GET_VERSION' && event.ports[0]) event.ports[0].postMessage({ version: VERSION, notes: NOTES });
 });
 
 self.addEventListener('fetch', (event) => {
@@ -44,15 +64,23 @@ self.addEventListener('fetch', (event) => {
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (!sameOrigin && !isFont) return;
 
+  // Opening the app (also with ?date=...): always the saved index.html of this version.
+  if (req.mode === 'navigate' && sameOrigin) {
+    event.respondWith(
+      caches.open(CACHE).then((cache) => cache.match('./index.html'))
+        .then((hit) => hit || fetch(req))
+    );
+    return;
+  }
+
+  // Everything else: saved copy first; if it's not saved yet, get it and save it.
   event.respondWith(
-    fetch(req)
-      .then((res) => {
-        if (res && (res.ok || res.type === 'opaque')) {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy));
-        }
+    caches.open(CACHE).then((cache) => cache.match(req, { ignoreSearch: sameOrigin }).then((hit) => {
+      if (hit) return hit;
+      return fetch(req).then((res) => {
+        if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
         return res;
-      })
-      .catch(() => caches.match(req).then((hit) => hit || (req.mode === 'navigate' ? caches.match('./index.html') : undefined)))
+      });
+    }))
   );
 });

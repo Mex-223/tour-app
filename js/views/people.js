@@ -49,5 +49,6 @@ export function renderPeople() {
       <h2 class="section-h">Team contacts</h2>${team || '<div class="empty">No contacts yet.</div>'}
       <h2 class="section-h">Venue contacts · upcoming</h2>${venues || '<div class="empty">No venue contacts for upcoming shows.</div>'}
       <h2 class="section-h">${state.view === 'me' || state.view === 'all' ? 'Band members' : 'Members'}</h2>${members}
+      <p class="app-version muted small" id="app-version"></p>
     </main>`;
 }
