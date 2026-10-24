@@ -1,7 +1,7 @@
 // Entry point: connects to the backend, picks the screen from the address
 // (#/today, #/schedule, …), draws it, and handles taps and forms.
 import {
-  state, savePrefs, startSync, bands, me, bandsLoading, bandById
+  state, savePrefs, startSync, bands, me, bandsLoading, bandById, isMgmt, myAway
 } from './store.js';
 import { bottomNav, sheet, sidebar } from './components.js';
 import { renderToday } from './views/today.js';
@@ -109,9 +109,25 @@ function render() {
   if (vEl) currentVersion().then((ver) => { if (ver && vEl.isConnected) vEl.textContent = `App version ${ver}${backend && backend.kind === 'mock' ? ' · TEST MODE' : ''}`; });
 }
 
+// My "not available" dates should exist in every band I'm in (e.g. after joining a new one).
+const awayCopied = new Set();
+function reconcileAway() {
+  if (!backend || !me.id) return;
+  const today = new Date().toISOString().slice(0, 10);
+  myAway().filter((a) => a.to >= today).forEach((a) => {
+    bands.forEach((b) => {
+      const key = `${a.id}:${b.id}`;
+      if (a.bands.includes(b.id) || awayCopied.has(key) || !state.awayLists[b.id]) return;
+      awayCopied.add(key);
+      backend.copyAway(b.id, a).catch(() => {});
+    });
+  });
+}
+
 // Live data changed: redraw, unless someone is typing in a form right now.
 let raf = 0;
 function scheduleRender() {
+  reconcileAway();
   const typing = app.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
   if (state.formDirty || typing) { state.needsRender = true; return; }
   cancelAnimationFrame(raf);
@@ -221,6 +237,20 @@ const actions = {
     run(async () => { await backend.leaveBand(me.id, el.dataset.band); location.hash = '#/me'; });
     return 'none';
   },
+  'remove-away': (el) => {
+    run(() => backend.removeAway(el.dataset.bands.split(','), el.dataset.id));
+    return 'none';
+  },
+  'accept-suggestion': (el) => {
+    run(async () => { await backend.acceptSuggestion(el.dataset.band, el.dataset.id); toast('Accepted. It\'s on the schedule now.'); });
+    return 'none';
+  },
+  'decline-suggestion': (el) => {
+    const withdraw = el.dataset.withdraw === '1';
+    if (!confirm(withdraw ? 'Withdraw your suggestion?' : 'Decline this suggestion? It will be removed.')) return 'none';
+    run(async () => { await backend.deleteEvent(el.dataset.band, el.dataset.id); location.hash = '#/schedule'; toast(withdraw ? 'Suggestion withdrawn.' : 'Suggestion declined.'); });
+    return 'none';
+  },
   'delete-band': (el) => {
     if (!confirm(`Delete ${el.dataset.name} with all its events? This can't be undone.`)) return 'none';
     run(async () => { await backend.deleteBand(me.id, el.dataset.band); location.hash = '#/me'; toast('Band deleted.'); });
@@ -285,6 +315,16 @@ const forms = {
     state.formDirty = false;
     render();
   },
+  'away-add': (f) => {
+    const from = String(f.get('from') || '');
+    let to = String(f.get('to') || '') || from;
+    if (!from) { state.authError = 'Please pick a start date.'; render(); return; }
+    if (to < from) to = from;
+    run(async () => {
+      await backend.addAway(me.id, bands.map((b) => b.id), { from, to, note: String(f.get('note') || '').trim(), name: me.name });
+      state.authInfo = 'Saved. Your bands can see it now.';
+    });
+  },
   'create-band': (f) => run(async () => {
     const id = await backend.createBand(me.id, { name: f.get('name').trim(), color: f.get('color') }, me);
     location.hash = `#/band/${id}`;
@@ -298,11 +338,14 @@ const forms = {
     const d = collectDraft(form);
     state.draft = d;
     if (!d.date) { state.authError = 'Please pick a date.'; render(); return; }
+    const data = toEventData(d);
+    const suggesting = !d.id && !isMgmt(d.band);
+    if (suggesting) Object.assign(data, { suggested: true, suggestedBy: me.id, suggestedByName: me.name });
     run(async () => {
-      const id = await backend.saveEvent(d.band, d.id, toEventData(d));
+      const id = await backend.saveEvent(d.band, d.id, data);
       state.draft = null;
       location.hash = `#/day/${id}`;
-      toast(d.id ? 'Saved.' : 'Added to the schedule.');
+      toast(suggesting ? 'Suggestion sent to MGMT.' : d.id ? 'Saved.' : 'Added to the schedule.');
     });
   }
 };
@@ -320,10 +363,10 @@ document.addEventListener('input', (ev) => {
 });
 
 document.addEventListener('change', (ev) => {
-  // Editor: switching the band updates the list of people
-  if (ev.target.name === 'band' && ev.target.closest('form[data-form="event"]')) {
+  // Editor: switching the band updates the list of people; a new date updates "not available" marks
+  if ((ev.target.name === 'band' || ev.target.name === 'date') && ev.target.closest('form[data-form="event"]')) {
     const d = collectDraft(ev.target.form);
-    d.people = (state.memberLists[d.band] || []).map((m) => m.uid);
+    if (ev.target.name === 'band') d.people = (state.memberLists[d.band] || []).map((m) => m.uid);
     state.draft = d;
     state.formDirty = false;
     render();

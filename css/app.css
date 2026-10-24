@@ -278,6 +278,21 @@ a.avatar { color: var(--text); }
 .sec summary .sec-title { display: inline-flex; align-items: center; gap: 8px; }
 
 
+
+/* ---------- Suggestions & not available ---------- */
+.badge.blue { color: #9DB8FF; }
+.row-suggested { border-style: dashed; border-left-style: solid; background: transparent; }
+.suggest-box { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--radius); background: #141B2E; border: 1px dashed #3B4E85; color: #C9D6FF; font-size: 14px; line-height: 1.4; }
+.suggest-box.link { flex-direction: row; align-items: flex-start; gap: 10px; }
+.suggest-box .btn-row > * { flex: 1; }
+.away-note { display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px; border-radius: 12px; background: #1E1F23; border: 1px solid var(--line); color: #C9CBD0; font-size: 13px; line-height: 1.4; }
+.away-note svg { flex: none; color: var(--muted); margin-top: 1px; }
+.lg-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.cal-awaydot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.cal-ev.away { border-left-color: var(--faint); background: repeating-linear-gradient(135deg, #1A1C20 0 6px, #202227 6px 12px); color: var(--muted); }
+.cal-ev.sugg { background: transparent; border: 1px dashed var(--c); border-left: 3px solid var(--c); }
+.check .badge { flex: none; }
+
 /* ---------- Laptop / desktop layout ---------- */
 .shell, .content { display: contents; }
 .sidebar, .desk-only, .desk-spacer, .btn-new, .cal-evs { display: none; }

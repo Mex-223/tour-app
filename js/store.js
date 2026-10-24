@@ -29,6 +29,7 @@ export const state = {
   bandDocs: {},
   memberLists: {},
   eventLists: {},
+  awayLists: {},
   pendingInvite: null
 };
 
@@ -82,6 +83,31 @@ function normalizeEvent(e, bandId) {
   };
 }
 
+// ---------- "Not available" dates ----------
+// One entry per period (the same period is stored once per band, with the same id).
+export function awayPeriods() {
+  const byId = {};
+  bands.forEach((b) => {
+    const memberIds = new Set((state.memberLists[b.id] || []).map((m) => m.uid));
+    (state.awayLists[b.id] || []).forEach((a) => {
+      if (!memberIds.has(a.uid) || !a.from) return; // left the band
+      const p = byId[a.id] || (byId[a.id] = { ...a, to: a.to || a.from, bands: [] });
+      p.bands.push(b.id);
+    });
+  });
+  return Object.values(byId).sort((x, y) => x.from.localeCompare(y.from));
+}
+export const myAway = () => awayPeriods().filter((a) => a.uid === me.id);
+// Who is away on a date, among the given bands (default: everything I can see).
+export function awayOn(date, bandIds) {
+  const seen = new Set();
+  return awayPeriods().filter((a) => a.from <= date && date <= a.to
+    && (!bandIds || a.bands.some((b) => bandIds.includes(b)))
+    && !seen.has(a.uid) && seen.add(a.uid));
+}
+// People ticked for an event who are away that day.
+export const awayConflicts = (e) => awayOn(e.date, [e.band]).filter((a) => e.people.includes(a.uid));
+
 export const bandById = (id) => bands.find((b) => b.id === id) || { id, name: '?', color: '#555', ink: '#fff' };
 export const membersOf = (bandId) => (state.memberLists[bandId] || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 export function personById(uid) {
@@ -124,14 +150,14 @@ export function visibleEvents() {
 export function clashDates() {
   const byDate = {};
   events.forEach((e) => {
-    if (e.type === 'off' || !e.people.includes(me.id)) return;
+    if (e.type === 'off' || e.suggested || !e.people.includes(me.id)) return;
     (byDate[e.date] = byDate[e.date] || new Set()).add(e.band);
   });
   return new Set(Object.keys(byDate).filter((d) => byDate[d].size > 1));
 }
 
 export function clashDescription(date) {
-  const list = events.filter((e) => e.date === date && e.type !== 'off' && e.people.includes(me.id)).sort(byDateTime);
+  const list = events.filter((e) => e.date === date && e.type !== 'off' && !e.suggested && e.people.includes(me.id)).sort(byDateTime);
   return list.map((e) => `${bandById(e.band).name} ${e.type === 'show' ? 'show' : e.type}${e.time ? ' ' + e.time : ''}${e.type === 'show' && e.place ? ' in ' + e.place : ''}`).join(' and ');
 }
 
@@ -169,6 +195,7 @@ function stopBand(id) {
   delete state.bandDocs[id];
   delete state.memberLists[id];
   delete state.eventLists[id];
+  delete state.awayLists[id];
 }
 
 function stopAll() {
@@ -210,7 +237,8 @@ function syncBands(ids) {
         changed();
       }, onErr),
       backendRef.watchMembers(id, (list) => { state.memberLists[id] = list; changed(); }, onErr),
-      backendRef.watchEvents(id, (list) => { state.eventLists[id] = list; changed(); }, onErr)
+      backendRef.watchEvents(id, (list) => { state.eventLists[id] = list; changed(); }, onErr),
+      backendRef.watchAway(id, (list) => { state.awayLists[id] = list; changed(); }, () => {})
     ];
   });
 }

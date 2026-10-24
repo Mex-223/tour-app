@@ -1,6 +1,6 @@
 // Shared building blocks: top bar, band switcher, bottom nav, event rows.
 import { TYPE_LABEL, MISSING_LABEL } from './data.js';
-import { state, viewLabel, roleLabel, me, bands, bandById, clashDates, chipsActive, roleName } from './store.js';
+import { state, viewLabel, roleLabel, me, bands, bandById, clashDates, chipsActive, roleName, awayConflicts } from './store.js';
 import { icons } from './icons.js';
 import { esc, weekday, dayNum } from './utils.js';
 
@@ -111,6 +111,9 @@ export function subline(e, withTime = true) {
 
 export function badges(e, clashes = clashDates()) {
   const out = [];
+  if (e.suggested) out.push(`<span class="badge blue">${icons.plus(13)}Suggested by ${esc(e.suggestedByName || 'a member')}</span>`);
+  const away = awayConflicts(e);
+  if (away.length) out.push(`<span class="badge amber">${icons.info(13)}${esc(away.map((a) => a.uid === me.id ? 'You' : a.name).join(', '))} not available</span>`);
   if (clashes.has(e.date) && e.type !== 'off' && e.people.includes(me.id)) out.push(`<span class="badge red">${icons.warn(13)}Clash</span>`);
   (e.missing || []).forEach((m) => out.push(`<span class="badge amber">${icons.info(13)}${esc(MISSING_LABEL[m] || m)}</span>`));
   if (e.status === 'advanced') out.push(`<span class="badge green">${icons.check(13)}Advanced</span>`);
@@ -122,7 +125,7 @@ export function eventRow(e, { showDate = true, clashes } = {}) {
   const date = showDate
     ? `<span class="row-date"><span class="wd">${esc(weekday(e.date).toUpperCase())}</span><span class="dn">${dayNum(e.date)}</span></span>`
     : `<span class="row-time">${esc(e.time || '—')}</span>`;
-  return `<a class="row ${e.type === 'off' ? 'row-off' : ''}" href="#/day/${esc(e.id)}" style="--band:${esc(b.color)}">
+  return `<a class="row ${e.type === 'off' ? 'row-off' : ''} ${e.suggested ? 'row-suggested' : ''}" href="#/day/${esc(e.id)}" style="--band:${esc(b.color)}">
     ${date}
     <span class="row-main">
       <span class="row-title"><span class="type-ico" aria-hidden="true">${icons[e.type](14)}</span>${esc(e.title)}</span>

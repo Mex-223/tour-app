@@ -12,6 +12,8 @@ rules_version = '2';
 //   and only the Owner can hand the lead over to another MGMT.
 // - You can join a band only with a valid invite code, and only as "member".
 // - You can always change your own name/instrument or leave a band.
+// - Members can suggest events (MGMT accept or decline) and add their own
+//   "not available" dates.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -76,9 +78,27 @@ service cloud.firestore {
       }
 
       // ---------- Events ----------
+      // MGMT plan events. Members can only add *suggestions* (marked as theirs),
+      // and withdraw their own suggestions. MGMT accept (update) or decline (delete).
       match /events/{eventId} {
         allow read: if isMember(bandId);
-        allow create, update, delete: if isMgmt(bandId);
+        allow create: if isMgmt(bandId)
+          || (isMember(bandId)
+            && request.resource.data.suggested == true
+            && request.resource.data.suggestedBy == request.auth.uid);
+        allow update: if isMgmt(bandId);
+        allow delete: if isMgmt(bandId)
+          || (isMember(bandId)
+            && resource.data.suggested == true
+            && resource.data.suggestedBy == request.auth.uid);
+      }
+
+      // "Not available" dates: every member manages their own; the band can see them.
+      match /away/{awayId} {
+        allow read: if isMember(bandId);
+        allow create: if isMember(bandId) && request.resource.data.uid == request.auth.uid;
+        allow update: if isMember(bandId) && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+        allow delete: if (signedIn() && resource.data.uid == request.auth.uid) || isMgmt(bandId);
       }
     }
 

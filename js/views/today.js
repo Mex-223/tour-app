@@ -1,5 +1,5 @@
 // TODAY — what matters right now, for me.
-import { baseEvents, clashDates, clashDescription, bandById, mgmtBands } from '../store.js';
+import { baseEvents, clashDates, clashDescription, bandById, mgmtBands, events, isMgmt } from '../store.js';
 import { topBar, eventRow, bandTag, subline } from '../components.js';
 import { icons } from '../icons.js';
 import { esc, todayISO, fmtDay, daysBetween, minutesOf, nowMinutes, fmtDuration, isDialable } from '../utils.js';
@@ -99,6 +99,12 @@ export function renderToday() {
 
   let body = '';
   let heroId = null;
+
+  // MGMT: suggestions from members waiting for an answer
+  const waiting = events.filter((e) => e.suggested && isMgmt(e.band) && e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  if (waiting.length) {
+    body += `<a class="suggest-box link" href="#/day/${esc(waiting[0].id)}">${icons.plus(18)}<span><strong>${waiting.length === 1 ? '1 suggestion' : waiting.length + ' suggestions'} waiting.</strong> ${esc(waiting[0].suggestedByName || 'A member')} suggested “${esc(waiting[0].title)}” on ${esc(fmtDay(waiting[0].date))}.</span></a>`;
+  }
 
   // Clash warning for the next two weeks
   const nextClash = [...clashes].sort().find((d) => d >= today && daysBetween(today, d) <= 14);

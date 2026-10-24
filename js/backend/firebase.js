@@ -69,6 +69,29 @@ export const backend = {
   watchMembers(bandId, cb, onError) {
     return onSnapshot(collection(db, 'bands', bandId, 'members'), (q) => cb(q.docs.map((d) => ({ uid: d.id, ...d.data() }))), onError);
   },
+  watchAway(bandId, cb, onError) {
+    return onSnapshot(collection(db, 'bands', bandId, 'away'), (q) => cb(q.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+  },
+  // "Not available" dates: one copy per band (same id), so every band sees them.
+  async addAway(uid, bandIds, data) {
+    const id = randomCode(12);
+    const batch = writeBatch(db);
+    bandIds.forEach((b) => batch.set(doc(db, 'bands', b, 'away', id), { ...data, uid, createdAt: serverTimestamp() }));
+    w(batch.commit());
+    return id;
+  },
+  async copyAway(bandId, period) {
+    const { id, bands: _b, ...data } = period;
+    w(setDoc(doc(db, 'bands', bandId, 'away', id), { from: data.from, to: data.to, note: data.note || '', name: data.name || '', uid: data.uid }));
+  },
+  async removeAway(bandIds, id) {
+    const batch = writeBatch(db);
+    bandIds.forEach((b) => batch.delete(doc(db, 'bands', b, 'away', id)));
+    w(batch.commit());
+  },
+  async acceptSuggestion(bandId, eventId) {
+    w(updateDoc(doc(db, 'bands', bandId, 'events', eventId), { suggested: false, updatedAt: serverTimestamp() }));
+  },
   watchEvents(bandId, cb, onError) {
     return onSnapshot(eventsCol(bandId), (q) => cb(q.docs.map((d) => ({ id: d.id, band: bandId, ...d.data() }))), onError);
   },

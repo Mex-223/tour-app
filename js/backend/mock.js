@@ -150,6 +150,38 @@ export const backend = {
     }, cb, onError);
   },
 
+  watchAway(b, cb, onError) {
+    return addWatcher(() => {
+      if (!isMember(b)) deny();
+      return Object.entries((db.away && db.away[b]) || {}).map(([id, a]) => ({ id, ...clone(a) }));
+    }, cb, onError);
+  },
+  async addAway(u, bandIds, data) {
+    const id = randomCode(12);
+    db.away = db.away || {};
+    bandIds.forEach((b) => {
+      if (!isMember(b)) deny();
+      (db.away[b] = db.away[b] || {})[id] = { ...clone(data), uid: u };
+    });
+    changed();
+    return id;
+  },
+  async copyAway(b, period) {
+    if (!isMember(b) || period.uid !== uid()) deny();
+    db.away = db.away || {};
+    (db.away[b] = db.away[b] || {})[period.id] = { from: period.from, to: period.to, note: period.note || '', name: period.name || '', uid: period.uid };
+    changed();
+  },
+  async removeAway(bandIds, id) {
+    bandIds.forEach((b) => {
+      const a = db.away && db.away[b] && db.away[b][id];
+      if (!a) return;
+      if (a.uid !== uid() && !isMgmt(b)) deny();
+      delete db.away[b][id];
+    });
+    changed();
+  },
+  async acceptSuggestion(b, eventId) { if (!isMgmt(b)) deny(); db.events[b][eventId].suggested = false; changed(); },
   async createBand(u, { name, color }, me) {
     const id = 'b-' + randomCode(8);
     db.bands[id] = { name, color, createdBy: u, inviteCode: null };
@@ -194,13 +226,19 @@ export const backend = {
   },
 
   async saveEvent(b, eventId, data) {
-    if (!isMgmt(b)) deny();
+    const suggestion = !eventId && data.suggested === true && data.suggestedBy === uid() && isMember(b);
+    if (!isMgmt(b) && !suggestion) deny();
     const id = eventId || 'e-' + randomCode(8);
     db.events[b][id] = clone(data);
     changed();
     return id;
   },
-  async deleteEvent(b, eventId) { if (!isMgmt(b)) deny(); delete db.events[b][eventId]; changed(); },
+  async deleteEvent(b, eventId) {
+    const e = db.events[b][eventId];
+    const ownSuggestion = e && e.suggested === true && e.suggestedBy === uid();
+    if (!isMgmt(b) && !ownSuggestion) deny();
+    delete db.events[b][eventId]; changed();
+  },
 
   async createInvite(u, band) {
     if (!isMgmt(band.id)) deny();

@@ -1,5 +1,5 @@
 // DAY PAGE — everything about one event, in collapsible sections.
-import { eventById, bandById, personById, isMgmt } from '../store.js';
+import { eventById, bandById, personById, isMgmt, awayConflicts, me } from '../store.js';
 import { bandTag, badges } from '../components.js';
 import { icons } from '../icons.js';
 import { esc, fmtDayLong, isDialable } from '../utils.js';
@@ -37,6 +37,22 @@ export function renderDay(id) {
   const b = bandById(e.band);
   const canEdit = isMgmt(e.band);
   let html = '';
+
+  if (e.suggested) {
+    const mine = e.suggestedBy === me.id;
+    html += `<section class="suggest-box">
+      <span><strong>Suggested by ${esc(mine ? 'you' : e.suggestedByName || 'a member')}.</strong> ${canEdit ? 'Accept it to put it on the schedule, or decline.' : 'MGMT will accept or decline it.'}</span>
+      <div class="btn-row">
+        ${canEdit ? `<button type="button" class="btn-primary" data-action="accept-suggestion" data-band="${esc(e.band)}" data-id="${esc(e.id)}">Accept</button>
+          <button type="button" class="btn-outline danger" data-action="decline-suggestion" data-band="${esc(e.band)}" data-id="${esc(e.id)}">Decline</button>` : ''}
+        ${!canEdit && mine ? `<button type="button" class="btn-outline danger" data-action="decline-suggestion" data-band="${esc(e.band)}" data-id="${esc(e.id)}" data-withdraw="1">Withdraw</button>` : ''}
+      </div>
+    </section>`;
+  }
+  const away = awayConflicts(e);
+  if (away.length) {
+    html += `<div class="away-note">${icons.off(16)}<span><strong>Not available that day:</strong> ${away.map((a) => esc(a.uid === me.id ? 'You' : a.name) + (a.note ? ` <span class="muted">(${esc(a.note)})</span>` : '')).join(', ')}</span></div>`;
+  }
 
   if (e.timetable && e.timetable.length) {
     html += section('Timetable', `${e.timetable.length} items`, `<div class="tt">${e.timetable.map((t) =>

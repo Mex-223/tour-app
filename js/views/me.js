@@ -1,8 +1,19 @@
 // PROFILE — my name, my bands, create a band, sign out.
-import { state, me, bands, isMgmt, membersOf, roleName } from '../store.js';
-import { esc } from '../utils.js';
+import { state, me, bands, isMgmt, membersOf, roleName, myAway } from '../store.js';
+import { esc, fmtDay, todayISO } from '../utils.js';
 import { icons } from '../icons.js';
 import { instrumentOptions, createBandForm } from './auth.js';
+
+function awayList() {
+  const today = todayISO();
+  const list = myAway().filter((a) => a.to >= today);
+  if (!list.length) return '<div class="empty">No dates yet.</div>';
+  return list.map((a) => `<div class="person">
+      <span class="stack-2 grow"><span class="person-name">${esc(fmtDay(a.from))}${a.to !== a.from ? ' – ' + esc(fmtDay(a.to)) : ''}</span>
+      <span class="muted small">${esc(a.note || 'Not available')}</span></span>
+      <button type="button" class="btn-small danger" data-action="remove-away" data-id="${esc(a.id)}" data-bands="${esc(a.bands.join(','))}">Remove</button>
+    </div>`).join('');
+}
 
 export function renderMe() {
   const bandRows = bands.map((b) => `<a class="person" href="#/band/${esc(b.id)}">
@@ -28,6 +39,23 @@ export function renderMe() {
         <label class="lbl">Instrument / role${instrumentOptions(me.instrument)}</label>
         <button class="btn-primary" type="submit" ${state.busy ? 'disabled' : ''}>Save</button>
       </form>
+
+      <section class="card pad stack-8" aria-label="Not available">
+        <h2 class="h2">When I'm not available</h2>
+        <p class="muted small">Holidays, work, other gigs… All your bands see these days, and MGMT get a warning when they plan something then.</p>
+        ${awayList()}
+        <details class="sec">
+          <summary><span class="sec-title">${icons.plus()} Add dates</span>${icons.chevronDown(18)}</summary>
+          <div class="sec-body"><form data-form="away-add" class="form">
+            <div class="grid-2">
+              <label class="lbl">From<input type="date" name="from" required value="${esc(todayISO())}"></label>
+              <label class="lbl">To (optional)<input type="date" name="to"></label>
+            </div>
+            <label class="lbl">Reason (optional, the band sees it)<input type="text" name="note" maxlength="60" placeholder="e.g. Holiday, work, other gig"></label>
+            <button class="btn-primary" type="submit" ${state.busy ? 'disabled' : ''}>Save</button>
+          </form></div>
+        </details>
+      </section>
 
       <h2 class="section-h">My bands</h2>
       ${bandRows || '<div class="empty">No bands yet.</div>'}

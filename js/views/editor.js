@@ -1,5 +1,5 @@
-// EVENT EDITOR — new / edit / delete an event (MGMT only).
-import { state, mgmtBands, membersOf, eventById, isMgmt, bandById } from '../store.js';
+// EVENT EDITOR — MGMT add / edit / delete events; members send suggestions.
+import { state, mgmtBands, membersOf, eventById, isMgmt, bandById, bands, awayOn, me } from '../store.js';
 import { TYPE_LABEL, MISSING_LABEL } from '../data.js';
 import { esc, todayISO } from '../utils.js';
 import { icons } from '../icons.js';
@@ -7,7 +7,8 @@ import { icons } from '../icons.js';
 const TYPES = ['show', 'rehearsal', 'travel', 'off', 'promo'];
 
 function blankDraft(key, date) {
-  const options = mgmtBands();
+  const mg = mgmtBands();
+  const options = mg.length ? mg.concat(bands.filter((b) => !mg.includes(b))) : bands;
   const preferred = options.find((b) => b.id === state.view) || options[0];
   const band = preferred ? preferred.id : null;
   return {
@@ -20,7 +21,7 @@ function blankDraft(key, date) {
 function draftFromEvent(key, e) {
   const c = JSON.parse(JSON.stringify(e));
   return {
-    key, id: e.id, band: e.band, type: c.type || 'show', title: c.title || '', date: c.date, time: c.time || '', end: c.end || '',
+    key, id: e.id, band: e.band, suggested: !!c.suggested, type: c.type || 'show', title: c.title || '', date: c.date, time: c.time || '', end: c.end || '',
     place: c.place || '', people: c.people || [], status: c.status || null, missing: c.missing || [], timetable: c.timetable || [],
     venue: { ...(c.venue || {}), contact: { ...((c.venue && c.venue.contact) || {}) } }, travel: c.travel || {}, hotel: c.hotel || {},
     catering: c.catering || {}, guests: c.guests || {}, setlist: c.setlist || '', notes: c.notes || ''
@@ -58,25 +59,28 @@ export function renderEditor(mode, arg) {
       <div class="title-row"><h1>${esc(title)}</h1></div>
     </header>`;
 
-  if (!d || !d.band || !isMgmt(d.band)) {
+  if (!d || !d.band || (mode === 'edit' && !isMgmt(d.band))) {
     return head('Not allowed') + `<main id="main"><div class="empty">${mode === 'edit' && !d
       ? 'This event doesn\'t exist anymore.'
-      : 'Only MGMT can add or edit events. Ask your band\'s MGMT to make you MGMT if you should plan things too.'}</div></main>`;
+      : 'Only MGMT can edit events. You can suggest new ones with the + button.'}</div></main>`;
   }
 
-  const options = mgmtBands();
+  // Members of a band (not MGMT) send a suggestion instead of adding directly.
+  const suggesting = mode === 'new' && !isMgmt(d.band);
+  const options = bands;
+  const awayIds = new Map(awayOn(d.date, [d.band]).map((a) => [a.uid, a]));
   const members = membersOf(d.band);
   const tt = (d.timetable || []).map((t) => `${t.time} ${t.label}`).join('\n');
 
   const bandField = mode === 'new' && options.length > 1
-    ? `<label class="lbl">Band<select name="band">${options.map((b) => `<option value="${esc(b.id)}" ${b.id === d.band ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></label>`
+    ? `<label class="lbl">Band<select name="band">${options.map((b) => `<option value="${esc(b.id)}" ${b.id === d.band ? 'selected' : ''}>${esc(b.name)}${isMgmt(b.id) ? '' : ' (suggestion)'}</option>`).join('')}</select></label>`
     : `<input type="hidden" name="band" value="${esc(d.band)}"><p class="muted small">Band: <strong style="color:${esc(bandById(d.band).color)}">${esc(bandById(d.band).name)}</strong></p>`;
 
   const typeField = `<fieldset class="choice"><legend class="lbl-text">Type</legend><div class="choice-row">${TYPES.map((t) =>
     `<label class="choice-opt"><input type="radio" name="type" value="${t}" ${d.type === t ? 'checked' : ''}><span>${icons[t](15)}${esc(TYPE_LABEL[t])}</span></label>`).join('')}</div></fieldset>`;
 
   const people = `<fieldset class="choice"><legend class="lbl-text">Who's needed</legend>
-    <div class="check-list">${members.map((m) => `<label class="check"><input type="checkbox" name="people" value="${esc(m.uid)}" ${d.people.includes(m.uid) ? 'checked' : ''}><span>${esc(m.name || 'Someone')}${m.instrument ? ` <span class="muted">· ${esc(m.instrument)}</span>` : ''}</span></label>`).join('')}</div>
+    <div class="check-list">${members.map((m) => { const aw = awayIds.get(m.uid); return `<label class="check"><input type="checkbox" name="people" value="${esc(m.uid)}" ${d.people.includes(m.uid) ? 'checked' : ''}><span class="grow">${esc(m.name || 'Someone')}${m.instrument ? ` <span class="muted">· ${esc(m.instrument)}</span>` : ''}</span>${aw ? `<span class="badge amber">Not available${aw.note ? ' · ' + esc(aw.note) : ''}</span>` : ''}</label>`; }).join('')}</div>
     <p class="muted small">Everyone ticked gets this in their My view, and clashes with their other bands are flagged.</p></fieldset>`;
 
   const status = `<fieldset class="choice"><legend class="lbl-text">Status</legend><div class="check-list">
@@ -85,8 +89,10 @@ export function renderEditor(mode, arg) {
   </div></fieldset>`;
 
   const c = d.venue.contact || {};
-  return head(mode === 'edit' ? (d.title || 'Edit event') : 'New event') + `<main id="main">
+  return head(mode === 'edit' ? (d.title || 'Edit event') : suggesting ? 'Suggest an event' : 'New event') + `<main id="main">
     ${state.authError ? `<p class="form-error" role="alert">${esc(state.authError)}</p>` : ''}
+    ${suggesting ? `<p class="form-info">You're a member of ${esc(bandById(d.band).name)}, so this goes to MGMT as a suggestion. It shows as "suggested" until they accept it.</p>` : ''}
+    ${mode === 'edit' && d.suggested ? '<p class="form-info">This is a suggestion. Saving it here accepts it and puts it on the schedule.</p>' : ''}
     <form data-form="event" class="form" novalidate>
       ${bandField}
       ${typeField}
@@ -118,7 +124,7 @@ export function renderEditor(mode, arg) {
       ${group('Setlist', `<label class="lbl">Songs or a note<textarea name="setlist" rows="5">${esc(d.setlist)}</textarea></label>`)}
       ${group('Notes', `<label class="lbl">Anything else<textarea name="notes" rows="4">${esc(d.notes)}</textarea></label>`, !!d.notes)}
       ${status}
-      <button class="btn-primary" type="submit" ${state.busy ? 'disabled' : ''}>${mode === 'edit' ? 'Save changes' : 'Add to schedule'}</button>
+      <button class="btn-primary" type="submit" ${state.busy ? 'disabled' : ''}>${mode === 'edit' ? 'Save changes' : suggesting ? 'Send suggestion' : 'Add to schedule'}</button>
       ${mode === 'edit' ? '<button type="button" class="btn-outline danger" data-action="delete-event">Delete event</button>' : ''}
     </form>
   </main>`;
