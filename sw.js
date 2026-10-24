@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.2.0';
-const NOTES = 'Logins, real bands, invite links and editing events.';
+const VERSION = '1.2.1';
+const NOTES = 'Fix: creating or joining a band no longer jumps back to the start.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [

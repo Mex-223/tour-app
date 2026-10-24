@@ -169,10 +169,24 @@ function stopAll() {
   Object.keys(bandSubs).forEach(stopBand);
 }
 
+// Right after creating or joining a band, Firebase can briefly answer "not a member"
+// because the save hasn't reached the server yet. So we wait and try again a few
+// times before deciding we really lost access (removed from the band / band deleted).
+const retries = {};
 function lostBand(id) {
-  // Removed from the band, or the band was deleted: forget it.
+  if (!bandSubs[id]) return; // already handled (all three listeners report the same problem)
   stopBand(id);
-  if (state.user && backendRef) backendRef.forgetBand(state.user.uid, id).catch(() => {});
+  const n = (retries[id] || 0) + 1;
+  retries[id] = n;
+  if (n <= 5) {
+    setTimeout(() => {
+      const ids = (state.profile && state.profile.bandIds) || [];
+      if (ids.includes(id) && !bandSubs[id]) syncBands(ids);
+    }, 1000 * n);
+  } else {
+    delete retries[id];
+    if (state.user && backendRef) backendRef.forgetBand(state.user.uid, id).catch(() => {});
+  }
   changed();
 }
 
@@ -182,7 +196,12 @@ function syncBands(ids) {
     if (bandSubs[id]) return;
     const onErr = (err) => { if (err && err.code === 'permission-denied') lostBand(id); };
     bandSubs[id] = [
-      backendRef.watchBand(id, (doc) => { if (!doc) return lostBand(id); state.bandDocs[id] = doc; changed(); }, onErr),
+      backendRef.watchBand(id, (doc, confirmed = true) => {
+        if (!doc) { if (confirmed) lostBand(id); return; }
+        if (confirmed) retries[id] = 0;
+        state.bandDocs[id] = doc;
+        changed();
+      }, onErr),
       backendRef.watchMembers(id, (list) => { state.memberLists[id] = list; changed(); }, onErr),
       backendRef.watchEvents(id, (list) => { state.eventLists[id] = list; changed(); }, onErr)
     ];

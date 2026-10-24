@@ -62,7 +62,9 @@ export const backend = {
   async saveProfile(uid, data) { w(setDoc(userRef(uid), data, { merge: true })); },
 
   watchBand(bandId, cb, onError) {
-    return onSnapshot(bandRef(bandId), (s) => cb(s.exists() ? { id: s.id, ...s.data() } : null), onError);
+    // 2nd argument: true when the server itself confirmed it (not just the copy on the phone)
+    return onSnapshot(bandRef(bandId), { includeMetadataChanges: true },
+      (s) => cb(s.exists() ? { id: s.id, ...s.data() } : null, !s.metadata.fromCache && !s.metadata.hasPendingWrites), onError);
   },
   watchMembers(bandId, cb, onError) {
     return onSnapshot(collection(db, 'bands', bandId, 'members'), (q) => cb(q.docs.map((d) => ({ uid: d.id, ...d.data() }))), onError);
