@@ -1,6 +1,5 @@
-// EXAMPLE DATA for step 1. In step 2 this moves to Firebase,
-// so every phone sees the same, live information.
-// Anything in [brackets] is a placeholder to replace with real info.
+// Labels used across the app, plus EXAMPLE DATA used only by the test mode (?mock=demo).
+// Real data lives in Firebase.
 
 export const ME = 'mex';
 
@@ -45,7 +44,7 @@ export const events = [
   {
     id: 'e4', band: 'mmne', type: 'show', date: '2026-11-07', time: '20:00', title: 'Club show', place: 'Vienna', people: MMNE,
     venue: { name: '[Venue name]', address: '[Street, 1xxx Vienna]', contact: { name: '[Name]', role: 'Promoter', phone: '+43 [number]' } },
-    timetable: [['17:00', 'Load-in'], ['18:00', 'Soundcheck'], ['19:30', 'Doors'], ['20:00', 'MM & TNE set · 60 min'], ['23:00', 'Curfew']]
+    timetable: [{ time: '17:00', label: 'Load-in' }, { time: '18:00', label: 'Soundcheck' }, { time: '19:30', label: 'Doors' }, { time: '20:00', label: 'MM & TNE set · 60 min' }, { time: '23:00', label: 'Curfew' }]
   },
   { id: 'e5', band: 'zascha', type: 'rehearsal', date: '2026-11-10', time: '18:00', end: '21:00', title: 'Band rehearsal', place: ROOM, people: ZASCHA },
   { id: 'e6', band: 'hfar', type: 'rehearsal', date: '2026-11-12', time: '19:00', end: '22:00', title: 'Album set rehearsal', place: ROOM, people: HFAR },
@@ -53,7 +52,7 @@ export const events = [
     id: 'e7', band: 'zascha', type: 'show', date: '2026-11-13', time: '21:00', title: 'Club show', place: 'Linz', people: ZASCHA, status: 'advanced',
     venue: { name: '[Venue name]', address: '[Street, 4xxx Linz]', contact: { name: '[Name]', role: 'Stage manager', phone: '+43 [number]' } },
     travel: { depart: '13:00', from: ROOM, method: 'Van', driver: '[Name]', cost: '[€ amount]' },
-    timetable: [['16:00', 'Load-in'], ['17:30', 'Soundcheck'], ['20:00', 'Doors'], ['21:00', 'Zascha set · 60 min'], ['23:30', 'Curfew']]
+    timetable: [{ time: '16:00', label: 'Load-in' }, { time: '17:30', label: 'Soundcheck' }, { time: '20:00', label: 'Doors' }, { time: '21:00', label: 'Zascha set · 60 min' }, { time: '23:30', label: 'Curfew' }]
   },
   {
     id: 'e8', band: 'zascha', type: 'show', date: '2026-11-14', time: '21:00', title: 'Club show', place: 'Salzburg', people: ZASCHA,
@@ -78,13 +77,13 @@ export const events = [
     catering: { text: 'Hot meal for 6 · rider drinks backstage', time: '18:00', diet: '2 vegetarian · 1 vegan' },
     guests: { used: 12, total: 20 },
     setlist: 'Fragments, full album',
-    timetable: [['14:00', 'Load-in'], ['16:30', 'Soundcheck'], ['18:00', 'Dinner at venue'], ['19:30', 'Doors'], ['20:15', 'Support set'], ['21:15', 'HFAR set · 75 min'], ['23:00', 'Curfew']]
+    timetable: [{ time: '14:00', label: 'Load-in' }, { time: '16:30', label: 'Soundcheck' }, { time: '18:00', label: 'Dinner at venue' }, { time: '19:30', label: 'Doors' }, { time: '20:15', label: 'Support set' }, { time: '21:15', label: 'HFAR set · 75 min' }, { time: '23:00', label: 'Curfew' }]
   },
   {
     id: 'e17', band: 'hfar', type: 'show', date: '2026-11-28', time: '21:00', title: 'Club show', place: 'Graz', people: [...HFAR, 'foh'],
     venue: { name: '[Venue name]', address: '[Street, 8xxx Graz]', contact: { name: '[Name]', role: 'Stage manager', phone: '+43 [number]' } },
     travel: { depart: '11:00', from: 'Vienna', method: 'Van', driver: '[Name]', cost: '[€ amount]' },
-    timetable: [['16:00', 'Load-in'], ['17:30', 'Soundcheck'], ['20:00', 'Doors'], ['21:00', 'HFAR set · 70 min'], ['23:00', 'Curfew']],
+    timetable: [{ time: '16:00', label: 'Load-in' }, { time: '17:30', label: 'Soundcheck' }, { time: '20:00', label: 'Doors' }, { time: '21:00', label: 'HFAR set · 70 min' }, { time: '23:00', label: 'Curfew' }],
     missing: ['hotel']
   },
   { id: 'e18', band: 'zascha', type: 'rehearsal', date: '2026-11-28', time: '18:00', end: '21:00', title: 'Band rehearsal', place: ROOM, people: ZASCHA },
@@ -95,3 +94,17 @@ export const events = [
 
 export const TYPE_LABEL = { show: 'Show', rehearsal: 'Rehearsal', travel: 'Travel', off: 'Day off', promo: 'Promo' };
 export const MISSING_LABEL = { hotel: 'Hotel missing', times: 'Times not confirmed' };
+
+// Band colours to choose from (ink = readable text colour on top of it).
+export const PALETTE = [
+  { color: '#F5A524', ink: '#1A1206', name: 'Amber' },
+  { color: '#5B8CFF', ink: '#0B1430', name: 'Blue' },
+  { color: '#E46AA8', ink: '#2A0A1A', name: 'Pink' },
+  { color: '#4CC38A', ink: '#06231A', name: 'Green' },
+  { color: '#A78BFA', ink: '#1C1235', name: 'Purple' },
+  { color: '#FF7A59', ink: '#2A0E06', name: 'Coral' },
+  { color: '#2BC4C4', ink: '#062626', name: 'Teal' },
+  { color: '#C9D64A', ink: '#1E2406', name: 'Lime' }
+];
+
+export const INSTRUMENTS = ['Drums', 'Vocals', 'Guitar', 'Bass', 'Keys', 'Sound (FOH)', 'Light', 'Merch', 'Tour manager', 'Driver'];

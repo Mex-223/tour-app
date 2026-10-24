@@ -1,5 +1,5 @@
 // TODAY — what matters right now, for me.
-import { baseEvents, clashDates, clashDescription, bandById } from '../store.js';
+import { baseEvents, clashDates, clashDescription, bandById, mgmtBands } from '../store.js';
 import { topBar, eventRow, bandTag, subline } from '../components.js';
 import { icons } from '../icons.js';
 import { esc, todayISO, fmtDay, daysBetween, minutesOf, nowMinutes, fmtDuration, isDialable } from '../utils.js';
@@ -25,10 +25,10 @@ function heroToday(e) {
   let nextLabel = '';
   let countdown = '';
   if (e.timetable && e.timetable.length) {
-    const next = e.timetable.find(([t]) => minutesOf(t) !== null && minutesOf(t) >= now);
+    const next = e.timetable.find((t) => minutesOf(t.time) !== null && minutesOf(t.time) >= now);
     if (next) {
-      nextLabel = `${next[1]} · ${next[0]}`;
-      const diff = minutesOf(next[0]) - now;
+      nextLabel = `${next.label} · ${next.time}`;
+      const diff = minutesOf(next.time) - now;
       countdown = diff <= 0 ? 'Now' : fmtDuration(diff);
     } else {
       nextLabel = 'All done for today';
@@ -62,8 +62,8 @@ function heroLater(e, today) {
 function timeline(e) {
   if (!e.timetable || !e.timetable.length) return '';
   const now = nowMinutes();
-  const nextIdx = e.timetable.findIndex(([t]) => minutesOf(t) !== null && minutesOf(t) >= now);
-  return `<section class="card timeline" aria-label="Today's timeline">${e.timetable.map(([t, label], i) => {
+  const nextIdx = e.timetable.findIndex((x) => minutesOf(x.time) !== null && minutesOf(x.time) >= now);
+  return `<section class="card timeline" aria-label="Today's timeline">${e.timetable.map(({ time: t, label }, i) => {
     const done = nextIdx === -1 ? true : i < nextIdx;
     const isNext = i === nextIdx;
     return `<div class="tl-row ${done ? 'done' : ''} ${isNext ? 'next' : ''}">
@@ -127,11 +127,14 @@ export function renderToday() {
     body += `<h2 class="section-h">Coming up</h2>` + coming.map((e) => eventRow(e, { clashes })).join('');
     body += `<a class="btn-outline" href="#/schedule">See full schedule</a>`;
   }
-  if (!todays.length && !upcoming.length) body += `<div class="empty">Nothing planned yet.</div>`;
+  if (!todays.length && !upcoming.length) {
+    body += `<div class="empty">Nothing planned yet.</div>`;
+    if (mgmtBands().length) body += `<a class="btn-primary" href="#/new">Add the first event</a>`;
+  }
 
   return `<header class="head">
       ${topBar()}
-      <div class="title-row"><h1>${esc(fmtDay(today))}</h1><span class="muted small">Example data</span></div>
+      <div class="title-row"><h1>${esc(fmtDay(today))}</h1></div>
     </header>
     <main id="main">${body}</main>`;
 }

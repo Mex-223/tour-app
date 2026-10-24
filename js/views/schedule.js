@@ -1,5 +1,5 @@
 // SCHEDULE — month calendar or list, with band filter chips.
-import { state, visibleEvents, clashDates, bandById, defaultMonth } from '../store.js';
+import { state, visibleEvents, clashDates, bandById, defaultMonth, mgmtBands } from '../store.js';
 import { topBar, chips, eventRow, empty } from '../components.js';
 import { icons } from '../icons.js';
 import { esc, todayISO, monthTitle, toISO, fmtDay, isoWeek, mondayOf, addDays, shortMonth, dayNum } from '../utils.js';
@@ -91,12 +91,16 @@ export function renderSchedule() {
       </div>`
     : '<h1>Upcoming</h1>';
 
+  const mainHtml = isMonth ? monthGrid(list, clashes) : listView(list, clashes);
+  const canAdd = mgmtBands().length > 0;
+  const addBtn = canAdd
+    ? `<a class="add-btn" href="#/new/${esc(isMonth && state.selected ? state.selected : todayISO())}" aria-label="New event">${icons.plus(22)}</a>` : '';
   return `<header class="head">
-      ${topBar()}
+      ${topBar(addBtn)}
       <div class="title-row">${title}${toggle}</div>
       ${chips()}
     </header>
-    <main id="main">${isMonth ? monthGrid(list, clashes) : listView(list, clashes)}</main>`;
+    <main id="main">${mainHtml}</main>`;
 }
 
 export function shiftMonth(delta) {

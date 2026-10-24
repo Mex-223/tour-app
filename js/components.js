@@ -1,14 +1,13 @@
 // Shared building blocks: top bar, band switcher, bottom nav, event rows.
-import { bands } from './data.js';
 import { TYPE_LABEL, MISSING_LABEL } from './data.js';
-import { state, viewLabel, roleLabel, me, bandById, clashDates, chipsActive } from './store.js';
+import { state, viewLabel, roleLabel, me, bands, bandById, clashDates, chipsActive } from './store.js';
 import { icons } from './icons.js';
 import { esc, weekday, dayNum } from './utils.js';
 
 export function switcherButton() {
   let dots;
   if (state.view === 'me' || state.view === 'all') {
-    dots = bands.filter((b) => me.bands[b.id]).map((b) => `<span class="dot" style="background:${esc(b.color)}"></span>`).join('');
+    dots = bands.map((b) => `<span class="dot" style="background:${esc(b.color)}"></span>`).join('');
   } else {
     dots = `<span class="dot" style="background:${esc(bandById(state.view).color)}"></span>`;
   }
@@ -23,7 +22,7 @@ export function topBar(rightExtra = '') {
     ${switcherButton()}
     <div class="topbar-right">
       <span class="muted small">${esc(roleLabel())}</span>${rightExtra}
-      <span class="avatar" aria-hidden="true">${esc(me.name[0])}</span>
+      <a class="avatar" href="#/me" aria-label="My profile and bands">${esc((me.name || '?')[0].toUpperCase())}</a>
     </div>
   </div>`;
 }
@@ -47,15 +46,16 @@ export function sheet() {
       ${on ? icons.check(18) : ''}
     </button>`;
   };
-  const myBands = bands.filter((b) => me.bands[b.id]);
-  const multi = `background:conic-gradient(${myBands.map((b, i) => `${b.color} ${(i / myBands.length) * 360}deg ${((i + 1) / myBands.length) * 360}deg`).join(',')})`;
+  const myBands = bands;
+  const multi = myBands.length === 0 ? 'background:#3A3F46' : `background:conic-gradient(${myBands.map((b, i) => `${b.color} ${(i / myBands.length) * 360}deg ${((i + 1) / myBands.length) * 360}deg`).join(',')})`;
   return `<div class="sheet-backdrop" data-action="close-sheet"></div>
   <div class="sheet" role="dialog" aria-modal="true" aria-label="Choose band or view">
     <div class="sheet-handle" aria-hidden="true"></div>
     ${opt('me', 'My view', 'Everything I am part of, across all bands', multi)}
     ${opt('all', 'All bands', 'Everything my bands have planned', 'background:#3A3F46')}
     <div class="sheet-sep">Bands</div>
-    ${myBands.map((b) => opt(b.id, b.name, `${b.full !== b.name ? b.full + ' · ' : ''}${me.bands[b.id] === 'mgmt' ? 'MGMT' : 'Member'}`, `background:${b.color}`)).join('')}
+    ${myBands.map((b) => opt(b.id, b.name, me.bands[b.id] === 'mgmt' ? 'MGMT' : 'Member', `background:${b.color}`)).join('')}
+    <a class="sheet-link" href="#/me">Manage bands, invites &amp; profile</a>
   </div>`;
 }
 
@@ -66,7 +66,8 @@ export function bandTag(bandId) {
 
 export function chips() {
   if (!chipsActive()) return '';
-  return `<div class="chips" role="group" aria-label="Show bands">${bands.filter((b) => me.bands[b.id]).map((b) => {
+  if (bands.length < 2) return '';
+  return `<div class="chips" role="group" aria-label="Show bands">${bands.map((b) => {
     const on = !state.hidden[b.id];
     return `<button type="button" class="chip ${on ? 'on' : ''}" data-action="toggle-band" data-band="${esc(b.id)}" aria-pressed="${on}">
       <span class="dot" style="background:${esc(b.color)}" aria-hidden="true"></span>${esc(b.name)}</button>`;

@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.1.0';
-const NOTES = 'Updates are now optional: you choose when to update.';
+const VERSION = '1.2.0';
+const NOTES = 'Logins, real bands, invite links and editing events.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
@@ -24,11 +24,18 @@ const SHELL = [
   './js/icons.js',
   './js/components.js',
   './js/updates.js',
+  './js/firebase-config.js',
+  './js/backend/firebase.js',
+  './js/backend/shared.js',
   './js/views/today.js',
   './js/views/schedule.js',
   './js/views/day.js',
   './js/views/people.js',
   './js/views/later.js',
+  './js/views/auth.js',
+  './js/views/me.js',
+  './js/views/band.js',
+  './js/views/editor.js',
   './icons/icon.svg',
   './icons/icon-180.png',
   './icons/icon-192.png',
@@ -62,7 +69,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
-  if (!sameOrigin && !isFont) return;
+  const isSdk = url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/');
+  if (!sameOrigin && !isFont && !isSdk) return;
 
   // Opening the app (also with ?date=...): always the saved index.html of this version.
   if (req.mode === 'navigate' && sameOrigin) {

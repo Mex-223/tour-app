@@ -12,12 +12,16 @@ function section(title, summary, content, open = false) {
   </details>`;
 }
 
-function addRow(title) {
-  return `<button type="button" class="sec-add" data-action="toast" data-msg="Editing comes in step 2, together with logins.">
-    <span class="sec-title">${esc(title)}</span><span class="add-hint">${icons.plus()}Add</span></button>`;
+function addRow(title, e, canEdit) {
+  const action = canEdit
+    ? `href="#/edit/${esc(e.id)}"`
+    : 'data-action="toast" data-msg="Only MGMT of this band can edit this."';
+  return `<a class="sec-add" ${action} role="button">
+    <span class="sec-title">${esc(title)}</span><span class="add-hint">${icons.plus()}Add</span></a>`;
 }
 
 const field = (label, value) => value ? `<div class="field"><span class="label">${esc(label)}</span><span>${esc(value)}</span></div>` : '';
+const hasAny = (obj) => obj && Object.values(obj).some((v) => (v && typeof v === 'object') ? hasAny(v) : !!v);
 
 function phoneLink(phone, label) {
   if (!isDialable(phone)) return '';
@@ -28,76 +32,85 @@ export function renderDay(id) {
   const e = eventById(id);
   if (!e) {
     return `<header class="head"><div class="topbar"><a class="icon-btn back" href="#/schedule" aria-label="Back to schedule">${icons.chevronLeft()}</a></div></header>
-      <main id="main"><div class="empty">This event doesn't exist (anymore).</div></main>`;
+      <main id="main"><div class="empty">This event doesn't exist (anymore), or you're not in this band.</div></main>`;
   }
   const b = bandById(e.band);
+  const canEdit = isMgmt(e.band);
   let html = '';
 
-  if (e.timetable) {
-    html += section('Timetable', `${e.timetable.length} items`, `<div class="tt">${e.timetable.map(([t, l]) =>
-      `<span class="tt-time">${esc(t)}</span><span>${esc(l)}</span>`).join('')}</div>`, true);
+  if (e.timetable && e.timetable.length) {
+    html += section('Timetable', `${e.timetable.length} items`, `<div class="tt">${e.timetable.map((t) =>
+      `<span class="tt-time">${esc(t.time)}</span><span>${esc(t.label)}</span>`).join('')}</div>`, true);
   } else if (e.time) {
-    html += section('Time', `${e.time}${e.end ? '–' + e.end : ''}`, `<div class="tt"><span class="tt-time">${esc(e.time)}</span><span>${esc(TYPE_LABEL[e.type])} starts</span>${e.end ? `<span class="tt-time">${esc(e.end)}</span><span>Ends</span>` : ''}</div>`, true);
+    html += section('Time', `${e.time}${e.end ? '–' + e.end : ''}`, `<div class="tt"><span class="tt-time">${esc(e.time)}</span><span>${esc(TYPE_LABEL[e.type] || 'Event')} starts</span>${e.end ? `<span class="tt-time">${esc(e.end)}</span><span>Ends</span>` : ''}</div>`, true);
   } else if (e.type !== 'off') {
-    html += addRow('Timetable');
+    html += addRow('Timetable', e, canEdit);
   }
 
   const who = e.people.map(personById).filter(Boolean);
-  html += section("Who's on", `${who.length} people`, `<div class="pills">${who.map((p) =>
-    `<span class="pill">${esc(p.name)} · ${esc(p.instrument)}</span>`).join('')}</div>`);
+  html += section("Who's on", who.length === 1 ? '1 person' : `${who.length} people`, who.length
+    ? `<div class="pills">${who.map((p) => `<span class="pill">${esc(p.name)}${p.instrument ? ' · ' + esc(p.instrument) : ''}</span>`).join('')}</div>`
+    : '<p class="muted">Nobody selected yet.</p>');
 
-  if (e.venue) {
+  if (hasAny(e.venue)) {
     const v = e.venue;
-    const c = v.contact;
-    const mapUrl = v.address && !/[[\]]/.test(v.address) ? `https://maps.apple.com/?q=${encodeURIComponent(v.name + ' ' + v.address)}` : null;
-    html += section('Venue', v.name, `
+    const c = v.contact || {};
+    const addr = [v.name, v.address].filter(Boolean).join(' ');
+    const mapUrl = v.address && !/[[\]]/.test(v.address) ? `https://maps.apple.com/?q=${encodeURIComponent(addr)}` : null;
+    html += section('Venue', v.name || '', `
       ${field('Address', v.address)}${field('Load-in', v.loadIn)}${field('Tech', v.tech)}
-      ${c ? `<div class="contact-line"><div class="field grow"><span class="label">Contact person</span><span>${esc(c.name)} · ${esc(c.role)}</span><span class="muted small">${esc(c.phone || '')}</span></div>
-        ${phoneLink(c.phone, 'Call venue contact')}
-        ${mapUrl ? `<a class="round-btn" href="${esc(mapUrl)}" target="_blank" rel="noopener" aria-label="Navigate to venue">${icons.pin(18)}</a>` : ''}</div>` : ''}`, true);
+      ${(c.name || c.phone) ? `<div class="contact-line"><div class="field grow"><span class="label">Contact person</span><span>${esc(c.name || '')}${c.role ? ' · ' + esc(c.role) : ''}</span><span class="muted small">${esc(c.phone || '')}</span></div>
+        ${phoneLink(c.phone, 'Call venue contact')}</div>` : ''}
+      ${mapUrl ? `<a class="btn-outline" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icons.pin(18)}&nbsp;Navigate</a>` : ''}`, true);
   } else if (e.type === 'show') {
-    html += addRow('Venue');
+    html += addRow('Venue', e, canEdit);
   }
 
-  if (e.travel) {
+  if (hasAny(e.travel)) {
     const t = e.travel;
-    html += section('Travel', `${t.method}${t.depart ? ' · ' + t.depart : ''}`, `<div class="grid-2 fields">
-      ${field('Departure', `${t.depart}${t.from ? ' · ' + t.from : ''}`)}${field('Driver', t.driver)}${field('Method', t.method)}${field('Est. cost', t.cost)}</div>`);
-  } else if (e.type === 'show') {
-    html += addRow('Travel');
-  }
-
-  if (e.hotel) {
-    html += section('Hotel', e.hotel.name, `${field('Address', e.hotel.address)}${field('Check-in', e.hotel.checkIn)}`);
+    html += section('Travel', [t.method, t.depart].filter(Boolean).join(' · '), `<div class="grid-2 fields">
+      ${field('Departure', [t.depart, t.from].filter(Boolean).join(' · '))}${field('Driver', t.driver)}${field('Method', t.method)}${field('Est. cost', t.cost)}</div>`);
   } else if (e.type === 'show' || e.type === 'travel') {
-    html += addRow('Hotel');
+    html += addRow('Travel', e, canEdit);
   }
 
-  if (e.catering) {
-    html += section('Catering / dinner', e.catering.time ? `${e.catering.time} at venue` : '', `<p>${esc(e.catering.text)}</p>${e.catering.diet ? `<p class="muted small">Dietary: ${esc(e.catering.diet)}</p>` : ''}`);
+  if (hasAny(e.hotel)) {
+    html += section('Hotel', e.hotel.name || '', `${field('Address', e.hotel.address)}${field('Check-in', e.hotel.checkIn)}`);
+  } else if (e.type === 'show' || e.type === 'travel') {
+    html += addRow('Hotel', e, canEdit);
+  }
+
+  if (hasAny(e.catering)) {
+    html += section('Catering / dinner', e.catering.time ? `${e.catering.time}` : '', `${e.catering.text ? `<p>${esc(e.catering.text)}</p>` : ''}${e.catering.diet ? `<p class="muted small">Dietary: ${esc(e.catering.diet)}</p>` : ''}`);
   } else if (e.type === 'show') {
-    html += addRow('Catering / dinner');
+    html += addRow('Catering / dinner', e, canEdit);
   }
 
-  if (e.guests) {
-    const pct = Math.round((e.guests.used / e.guests.total) * 100);
-    html += section('Guest list', `${e.guests.used} of ${e.guests.total} slots`, `<div class="meter"><div style="width:${pct}%;background:${esc(b.color)}"></div></div>`);
+  if (e.guests && e.guests.total) {
+    const used = e.guests.used || 0;
+    const pct = Math.min(100, Math.round((used / e.guests.total) * 100));
+    html += section('Guest list', `${used} of ${e.guests.total} slots`, `<div class="meter"><div style="width:${pct}%;background:${esc(b.color)}"></div></div>`);
   } else if (e.type === 'show') {
-    html += addRow('Guest list');
+    html += addRow('Guest list', e, canEdit);
   }
 
-  if (e.setlist) html += section('Setlist', e.setlist, `<p class="muted">[Attach setlist PDF or add songs]</p>`);
-  else if (e.type === 'show') html += addRow('Setlist');
+  if (e.setlist) html += section('Setlist', '', `<p style="white-space:pre-line">${esc(e.setlist)}</p>`);
+  else if (e.type === 'show') html += addRow('Setlist', e, canEdit);
 
-  html += addRow(e.type === 'show' ? 'Notes & after-show rating' : 'Notes');
+  if (e.notes) html += section('Notes', '', `<p style="white-space:pre-line">${esc(e.notes)}</p>`, true);
+  else html += addRow('Notes', e, canEdit);
+
+  const right = canEdit
+    ? `<a class="btn-small" href="#/edit/${esc(e.id)}">Edit</a>`
+    : '<span class="muted small">View only</span>';
 
   return `<header class="head day-head">
       <div class="topbar">
         <a class="icon-btn back" href="#/schedule" aria-label="Back to schedule">${icons.chevronLeft()}</a>
-        <span class="muted small">${isMgmt(e.band) ? 'You can edit this (MGMT)' : 'View only'}</span>
+        ${right}
       </div>
-      <div class="day-meta">${bandTag(e.band)}<span class="muted">${esc(TYPE_LABEL[e.type])}</span>${badges(e)}</div>
-      <h1 class="day-title">${esc(e.title)}</h1>
+      <div class="day-meta">${bandTag(e.band)}<span class="muted">${esc(TYPE_LABEL[e.type] || 'Event')}</span>${badges(e)}</div>
+      <h1 class="day-title">${esc(e.title || TYPE_LABEL[e.type] || 'Event')}</h1>
       <span class="muted">${esc(fmtDayLong(e.date))}${e.place ? ' · ' + esc(e.place) : ''}</span>
     </header>
     <main id="main" style="--band:${esc(b.color)}">${html}</main>`;

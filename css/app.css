@@ -215,6 +215,67 @@ main .sec { background: var(--surface); border: 1px solid var(--line); border-ra
 .upd-now { background: var(--text); color: var(--bg); border: 0; }
 .app-version { text-align: center; padding-top: 16px; }
 
+
+/* ---------- Forms & auth (step 2) ---------- */
+.center-screen { align-items: center; justify-content: center; text-align: center; gap: 14px; padding: 32px 24px; }
+.center { text-align: center; }
+.logo { display: inline-flex; flex-direction: column; gap: 6px; width: 64px; padding: 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.logo i { display: block; height: 7px; border-radius: 4px; }
+.auth { padding: calc(env(safe-area-inset-top) + 40px) 20px 32px; gap: 14px; }
+.auth h1 { margin-top: 6px; }
+.form { display: flex; flex-direction: column; gap: 14px; }
+.pad { padding: 18px; }
+.stack-8 { display: flex; flex-direction: column; gap: 8px; }
+.h2 { font-family: var(--display); font-size: 19px; font-weight: 700; }
+.lbl, .lbl-text { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.lbl-text { padding: 0; margin-bottom: 8px; }
+input[type="text"], input[type="email"], input[type="password"], input[type="tel"], input[type="date"], input[type="time"], input[type="number"], select, textarea {
+  width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #141518; color: var(--text); font: inherit; font-size: 16px;
+}
+textarea { line-height: 1.45; resize: vertical; }
+input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--text); outline-offset: 0; border-color: transparent; }
+.form-error { padding: 12px 14px; border-radius: 12px; background: var(--red-bg); border: 1px solid var(--red-line); color: var(--red-text); font-size: 14px; }
+.form-info { padding: 12px 14px; border-radius: 12px; background: #15281F; border: 1px solid #2B5240; color: var(--green); font-size: 14px; }
+.btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 18px; border-radius: var(--radius); border: 0; background: var(--text); color: var(--bg); font-size: 16px; font-weight: 600; cursor: pointer; }
+.btn-primary:disabled, .btn-google:disabled { opacity: 0.55; cursor: progress; }
+.btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); font-size: 16px; font-weight: 600; cursor: pointer; }
+.or { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12px; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.link-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--text); font-size: 15px; font-weight: 500; cursor: pointer; text-decoration: none; }
+.link-btn.muted { color: var(--muted); font-size: 14px; }
+.btn-outline { cursor: pointer; background: transparent; color: var(--text); font-family: inherit; gap: 6px; }
+.btn-outline.danger, .btn-small.danger { color: var(--red-text); border-color: var(--red-line); }
+.btn-small { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-row > * { flex: 1; }
+.small-row { padding-left: 48px; }
+.small-row > * { flex: none; }
+.add-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--text); color: var(--bg); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.invite-url { font-size: 14px !important; color: var(--muted) !important; }
+.sheet-link { display: flex; align-items: center; justify-content: center; min-height: 48px; margin-top: 6px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 14px; }
+a.avatar { color: var(--text); }
+.person.col { flex-direction: column; align-items: stretch; gap: 10px; }
+.row-inline { display: flex; align-items: center; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.choice { border: 0; margin: 0; padding: 0; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice-opt input, .swatch input { position: absolute; opacity: 0; pointer-events: none; }
+.choice-opt span { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted); font-size: 14px; font-weight: 500; cursor: pointer; }
+.choice-opt input:checked + span { background: var(--text); color: var(--bg); border-color: var(--text); }
+.choice-opt input:focus-visible + span, .swatch input:focus-visible + span { outline: 2px solid var(--text); outline-offset: 2px; }
+.check-list { display: flex; flex-direction: column; gap: 6px; }
+.check { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 15px; cursor: pointer; }
+.check input { width: 20px; height: 20px; accent-color: var(--text); flex: none; }
+.swatches { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.swatches legend { width: 100%; }
+.swatch { position: relative; cursor: pointer; }
+.swatch span[aria-hidden] { display: block; width: 36px; height: 36px; border-radius: 50%; border: 3px solid transparent; box-shadow: 0 0 0 1px var(--line); }
+.swatch input:checked + span { border-color: var(--bg); box-shadow: 0 0 0 2px var(--text); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sec summary .sec-title { display: inline-flex; align-items: center; gap: 8px; }
+
 @media (prefers-reduced-motion: reduce) {
   .sheet { animation: none; }
   #toast, .sec summary .chev { transition: none; }
