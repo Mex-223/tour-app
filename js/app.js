@@ -3,7 +3,7 @@
 import {
   state, savePrefs, startSync, bands, me, bandsLoading, bandById
 } from './store.js';
-import { bottomNav, sheet } from './components.js';
+import { bottomNav, sheet, sidebar } from './components.js';
 import { renderToday } from './views/today.js';
 import { renderSchedule, shiftMonth, gotoDate } from './views/schedule.js';
 import { renderDay } from './views/day.js';
@@ -83,7 +83,7 @@ function screenFor(route) {
   else if (name === 'edit') html = renderEditor('edit', arg);
   else html = renderToday();
   const tab = ['day'].includes(name) ? 'schedule' : (['me', 'band'].includes(name) ? null : (TABS.includes(name) ? name : 'today'));
-  return { html, nav: !['new', 'edit'].includes(name), tab };
+  return { html, nav: !['new', 'edit'].includes(name), tab, shell: true, side: ['me', 'band'].includes(name) ? 'me' : tab };
 }
 
 let lastHash = null;
@@ -92,7 +92,10 @@ function render() {
   const oldMain = document.getElementById('main');
   const keepScroll = lastHash === location.hash && oldMain ? oldMain.scrollTop : 0;
   const s = screenFor(route);
-  app.innerHTML = s.html + (s.nav ? bottomNav(s.tab) + sheet() : '');
+  app.className = s.shell ? 'has-shell' : '';
+  app.innerHTML = s.shell
+    ? `<div class="shell">${sidebar(s.side)}<div class="content">${s.html}</div></div>${s.nav ? bottomNav(s.tab) + sheet() : ''}`
+    : s.html;
   const main = document.getElementById('main');
   if (main) main.scrollTop = keepScroll;
   lastHash = location.hash;

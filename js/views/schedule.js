@@ -26,11 +26,14 @@ function monthGrid(list, clashes) {
     const evs = byDate[iso] || [];
     const sel = state.selected === iso;
     const clash = clashes.has(iso) && evs.length > 0;
+    const shown = evs.slice(0, 3).map((e) => `<span class="cal-ev ${e.type === 'rehearsal' || e.type === 'off' ? 'soft' : ''}" style="--c:${esc(bandById(e.band).color)}">${e.time ? `<b>${esc(e.time)}</b> ` : ''}${esc(e.title)}</span>`).join('');
+    const more = evs.length > 3 ? `<span class="cal-more">+${evs.length - 3} more</span>` : '';
     const bars = evs.slice(0, 3).map((e) => `<span class="bar ${e.type === 'rehearsal' || e.type === 'off' ? 'soft' : ''}" style="background:${esc(bandById(e.band).color)}"></span>`).join('');
     const label = `${d} ${monthTitle(ym).split(' ')[0]}, ${evs.length ? evs.length + (evs.length === 1 ? ' event' : ' events') : 'nothing planned'}${clash ? ', clash' : ''}`;
     cells += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${iso === today ? 'is-today' : ''}" data-action="pick-day" data-date="${iso}" aria-pressed="${sel}" aria-label="${esc(label)}">
       <span class="cal-top"><span class="cal-num">${d}</span>${clash ? `<span class="cal-clash">${icons.warn(12)}</span>` : ''}</span>
       <span class="cal-bars">${bars}</span>
+      <span class="cal-evs">${shown}${more}</span>
     </button>`;
   }
 
@@ -39,7 +42,7 @@ function monthGrid(list, clashes) {
   const clashNote = clashes.has(sel) && agenda.length
     ? `<div class="warning small-warning">${icons.warn(18)}<span>You're booked by two bands on this day. Check who is needed where.</span></div>` : '';
 
-  return `<div class="cal">
+  return `<div class="sched"><div class="cal">
       <div class="cal-head" aria-hidden="true"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>
       <div class="cal-grid">${cells}</div>
       <div class="legend"><span><i class="lg"></i>Show / travel</span><span><i class="lg soft"></i>Rehearsal / off</span><span>${icons.warn(11)}Clash</span></div>
@@ -48,7 +51,8 @@ function monthGrid(list, clashes) {
       <h2 class="section-h">${esc(fmtDay(sel))}</h2>
       ${clashNote}
       ${agenda.length ? agenda.map((e) => eventRow(e, { showDate: false, clashes })).join('') : empty('Nothing planned for the selected bands.')}
-    </section>`;
+      ${mgmtBands().length ? `<a class="btn-outline desk-only" href="#/new/${esc(sel)}">${icons.plus()} Add event on ${esc(fmtDay(sel))}</a>` : ''}
+    </section></div>`;
 }
 
 function listView(list, clashes) {
@@ -95,12 +99,12 @@ export function renderSchedule() {
   const canAdd = mgmtBands().length > 0;
   const addBtn = canAdd
     ? `<a class="add-btn" href="#/new/${esc(isMonth && state.selected ? state.selected : todayISO())}" aria-label="New event">${icons.plus(22)}</a>` : '';
-  return `<header class="head">
+  return `<header class="head head-wide">
       ${topBar(addBtn)}
-      <div class="title-row">${title}${toggle}</div>
-      ${chips()}
+      <div class="title-row">${title}<span class="desk-spacer"></span><span class="desk-only">${chips()}</span>${toggle}${canAdd ? `<a class="btn-new desk-only" href="#/new/${esc(isMonth && state.selected ? state.selected : todayISO())}">${icons.plus()} New event</a>` : ''}</div>
+      <div class="phone-only">${chips()}</div>
     </header>
-    <main id="main">${mainHtml}</main>`;
+    <main id="main" class="${isMonth ? 'main-wide' : ''}">${mainHtml}</main>`;
 }
 
 export function shiftMonth(delta) {

@@ -18,7 +18,7 @@ export function switcherButton() {
 }
 
 export function topBar(rightExtra = '') {
-  return `<div class="topbar">
+  return `<div class="topbar topbar-main">
     ${switcherButton()}
     <div class="topbar-right">
       <span class="muted small">${esc(roleLabel())}</span>${rightExtra}
@@ -34,6 +34,35 @@ export function bottomNav(active) {
   return `<nav class="bottomnav" aria-label="Main">${tabs.map(([id, label]) =>
     `<a href="#/${id}" class="${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icons[id]()}<span>${label}</span></a>`
   ).join('')}</nav>`;
+}
+
+// Laptop / desktop: sidebar with views, sections and profile (hidden on phones via CSS).
+export function sidebar(active) {
+  const myBands = bands;
+  const multi = myBands.length === 0 ? 'background:#3A3F46' : `background:conic-gradient(${myBands.map((b, i) => `${b.color} ${(i / myBands.length) * 360}deg ${((i + 1) / myBands.length) * 360}deg`).join(',')})`;
+  const view = (value, label, dot, role = '') => {
+    const on = state.view === value;
+    return `<button type="button" class="side-item ${on ? 'on' : ''}" data-action="set-view" data-view="${esc(value)}" aria-pressed="${on}">
+      <span class="side-dot" style="${dot}" aria-hidden="true"></span><span class="grow">${esc(label)}</span>${role ? `<span class="side-role">${esc(role)}</span>` : ''}</button>`;
+  };
+  const tabs = [['today', 'Today'], ['schedule', 'Schedule'], ['people', 'People'], ['money', 'Money'], ['docs', 'Docs']];
+  return `<aside class="sidebar" aria-label="Sidebar">
+    <a class="side-logo" href="#/today"><span class="logo small-logo" aria-hidden="true"><i style="background:${esc((myBands[0] || {}).color || '#F5A524')};width:80%"></i><i style="background:${esc((myBands[1] || {}).color || '#5B8CFF')};width:60%"></i><i style="background:${esc((myBands[2] || {}).color || '#E46AA8')};width:70%"></i></span>Tour</a>
+    <nav class="side-group" aria-label="View">
+      <span class="side-h">View</span>
+      ${view('me', 'My view', multi)}
+      ${view('all', 'All bands', 'background:#3A3F46')}
+      ${myBands.map((b) => view(b.id, b.name, `background:${b.color}`, me.bands[b.id] === 'mgmt' ? 'MGMT' : '')).join('')}
+    </nav>
+    <nav class="side-group" aria-label="Main">
+      <span class="side-h">App</span>
+      ${tabs.map(([id, label]) => `<a href="#/${id}" class="side-item ${active === id ? 'on' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icons[id](18)}<span>${label}</span></a>`).join('')}
+    </nav>
+    <a class="side-profile ${active === 'me' ? 'on' : ''}" href="#/me">
+      <span class="avatar" aria-hidden="true">${esc((me.name || '?')[0].toUpperCase())}</span>
+      <span class="stack-2"><span class="person-name">${esc(me.name)}</span><span class="muted small">${esc(me.instrument || 'Profile')} · bands &amp; invites</span></span>
+    </a>
+  </aside>`;
 }
 
 export function sheet() {
