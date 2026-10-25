@@ -33,6 +33,7 @@ export const state = {
   contactLists: {},
   docLists: {},
   privateDocLists: {},
+  merch: {},                          // bandId -> { products, photos, costs, bundles, sales, nights }
   pendingInvite: null
 };
 
@@ -212,6 +213,7 @@ function stopBand(id) {
   delete state.contactLists[id];
   delete state.docLists[id];
   delete state.privateDocLists[id];
+  delete state.merch[id];
 }
 
 function stopAll() {
@@ -258,10 +260,18 @@ function syncBands(ids) {
       backendRef.watchList(id, 'contacts', (list) => { state.contactLists[id] = list; changed(); }, () => {}),
       backendRef.watchList(id, 'docs', (list) => { state.docLists[id] = list; changed(); }, () => {}),
       // Only MGMT may read these; for members this simply stays empty.
-      backendRef.watchList(id, 'privateDocs', (list) => { state.privateDocLists[id] = list; changed(); }, () => {})
+      backendRef.watchList(id, 'privateDocs', (list) => { state.privateDocLists[id] = list; changed(); }, () => {}),
+      // Merch (costs: MGMT only)
+      ...MERCH_LISTS.map((name) => backendRef.watchList(id, name, (list) => {
+        (state.merch[id] = state.merch[id] || {})[name] = list;
+        changed();
+      }, () => {}))
     ];
   });
 }
+
+const MERCH_LISTS = ['products', 'photos', 'costs', 'bundles', 'sales', 'nights'];
+export const merchOf = (bandId, name) => ((state.merch[bandId] || {})[name]) || [];
 
 function changed() {
   recompute();

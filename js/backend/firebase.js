@@ -9,7 +9,7 @@ import {
 import {
   initializeFirestore, getFirestore, terminate, persistentLocalCache, persistentMultipleTabManager,
   doc, collection, onSnapshot, getDoc, setDoc, updateDoc, deleteDoc, writeBatch,
-  arrayUnion, arrayRemove, serverTimestamp
+  arrayUnion, arrayRemove, serverTimestamp, increment, FieldPath
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from '../firebase-config.js';
 import { randomCode } from './shared.js';
@@ -146,6 +146,57 @@ export const backend = {
     return key;
   },
   async deleteItem(bandId, name, id) { w(() => deleteDoc(sub(bandId, name, id))); },
+
+  // ---------- Merch ----------
+  // Stock lives in the product: stock.{colourId}.{van|storage}.{size} = count.
+  // Sales and moves change it with "increment", so two phones selling at once never overwrite each other.
+  async saveMerch(bandId, name, id, data) {
+    const key = id || newId();
+    w(() => setDoc(sub(bandId, name, key), data));
+    return key;
+  },
+  async deleteProduct(bandId, pid, photoKeys) {
+    w(() => {
+      const batch = writeBatch(db);
+      batch.delete(sub(bandId, 'products', pid));
+      batch.delete(sub(bandId, 'costs', pid));
+      photoKeys.forEach((k) => batch.delete(sub(bandId, 'photos', k)));
+      return batch.commit();
+    });
+  },
+  // moves: [{ pid, cid, loc, size, n }] (n negative = taken out)
+  async changeStock(bandId, moves, extra) {
+    w(() => {
+      const batch = writeBatch(db);
+      if (extra) extra(batch, (name, id) => sub(bandId, name, id));
+      const byProduct = {};
+      moves.forEach((m) => {
+        const k = [m.cid, m.loc, m.size].join('\u0000');
+        const p = (byProduct[m.pid] = byProduct[m.pid] || {});
+        p[k] = (p[k] || 0) + m.n;
+      });
+      Object.entries(byProduct).forEach(([pid, fields]) => {
+        const args = [];
+        Object.entries(fields).forEach(([k, n]) => {
+          if (!n) return;
+          const [cid, loc, size] = k.split('\u0000');
+          args.push(new FieldPath('stock', cid, loc, size), increment(n));
+        });
+        if (args.length) batch.update(sub(bandId, 'products', pid), ...args);
+      });
+      return batch.commit();
+    });
+  },
+  async recordSale(bandId, saleId, sale, moves) {
+    return this.changeStock(bandId, moves, (batch, ref) => batch.set(ref('sales', saleId), { ...sale, createdAt: serverTimestamp() }));
+  },
+  async undoSale(bandId, saleId, moves) {
+    return this.changeStock(bandId, moves, (batch, ref) => batch.delete(ref('sales', saleId)));
+  },
+  async saveNight(bandId, key, data) {
+    w(() => setDoc(sub(bandId, 'nights', key), { ...data, updatedAt: serverTimestamp() }, { merge: true }));
+  },
+  newId() { return newId(); },
 
   // ---------- "Not available" dates: one copy per band (same id), so every band sees them ----------
   watchAway(bandId, cb, onError) {

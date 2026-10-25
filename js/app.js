@@ -11,7 +11,8 @@ import { renderToday } from './views/today.js';
 import { renderSchedule, shiftMonth, gotoDate } from './views/schedule.js';
 import { renderDay } from './views/day.js';
 import { renderPeople } from './views/people.js';
-import { renderLater } from './views/later.js';
+import { renderStock, renderSell, renderNights, renderNight, renderProductForm, renderBundleForm } from './views/merch.js';
+import { installMerch } from './merch-actions.js';
 import { renderSplash, renderBackendError, renderLogin, renderSetup, renderJoin, renderWelcome } from './views/auth.js';
 import { renderMe } from './views/me.js';
 import { renderBand, inviteUrl } from './views/band.js';
@@ -83,7 +84,13 @@ function screenFor(route) {
   if (name === 'schedule') html = renderSchedule();
   else if (name === 'day') html = renderDay(arg);
   else if (name === 'people') html = renderPeople();
-  else if (name === 'money') html = renderLater(name);
+  else if (name === 'money') html = renderStock();
+  else if (name === 'merch' && arg === 'sell') html = renderSell();
+  else if (name === 'merch' && arg === 'nights') html = renderNights();
+  else if (name === 'merch' && arg === 'night') html = renderNight(arg2 || '');
+  else if (name === 'merch' && arg === 'product') html = renderProductForm(arg2);
+  else if (name === 'merch' && arg === 'bundle') html = renderBundleForm(arg2);
+  else if (name === 'merch') html = renderStock();
   else if (name === 'docs') html = renderDocs();
   else if (name === 'doc') html = renderDocForm(arg, arg2, arg3 === 'p');
   else if (name === 'contact') html = renderContactForm(arg, arg2);
@@ -93,9 +100,10 @@ function screenFor(route) {
   else if (name === 'new') html = renderEditor('new', arg);
   else if (name === 'edit') html = renderEditor('edit', arg);
   else html = renderToday();
-  const parent = { day: 'schedule', contact: 'people', doc: 'docs', export: 'docs' };
+  const parent = { day: 'schedule', contact: 'people', doc: 'docs', export: 'docs', merch: 'money' };
   const tab = parent[name] || (['me', 'band'].includes(name) ? null : (TABS.includes(name) ? name : 'today'));
-  return { html, nav: !['new', 'edit', 'contact', 'doc', 'export'].includes(name), tab, shell: true, side: ['me', 'band'].includes(name) ? 'me' : tab };
+  const form = ['new', 'edit', 'contact', 'doc', 'export'].includes(name) || (name === 'merch' && ['product', 'bundle'].includes(arg));
+  return { html, nav: !form, tab, shell: true, side: ['me', 'band'].includes(name) ? 'me' : tab };
 }
 
 let lastHash = null;
@@ -475,7 +483,7 @@ document.addEventListener('submit', (ev) => {
 });
 
 document.addEventListener('input', (ev) => {
-  if (ev.target.closest('form[data-form="event"], form[data-form="profile"], form[data-form="band-settings"], form[data-form="create-band"], form[data-form="contact"], form[data-form="doc"], form[data-form="export"], form[data-form="away-add"]')) state.formDirty = true;
+  if (ev.target.closest('form[data-form="event"], form[data-form="profile"], form[data-form="band-settings"], form[data-form="create-band"], form[data-form="contact"], form[data-form="doc"], form[data-form="export"], form[data-form="away-add"], form[data-form="product"], form[data-form="bundle"], form[data-form="night"]')) state.formDirty = true;
 });
 
 document.addEventListener('change', (ev) => {
@@ -508,6 +516,7 @@ document.addEventListener('focusout', () => {
 
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && state.navQuery) { state.navQuery = null; render(); return; }
+  if (ev.key === 'Escape' && state.pick) { state.pick = null; render(); return; }
   if (ev.key === 'Escape' && state.sheetOpen) {
     state.sheetOpen = false;
     render();
@@ -524,9 +533,13 @@ window.addEventListener('hashchange', () => {
   state.authInfo = null;
   if (!['new', 'edit'].includes(route.name)) state.draft = null;
   if (route.name !== 'export') { state.exp = null; state.exportResult = null; }
+  if (!(route.name === 'merch' && route.arg === 'product')) state.pd = null;
+  state.pick = null;
   document.getElementById('toast').classList.remove('show');
   render();
 });
+
+installMerch({ getBackend: () => backend, render, toast, run, actions, forms });
 
 // ---------- Start ----------
 const RECOVER_KEY = 'tourapp.recover';

@@ -14,6 +14,8 @@ rules_version = '2';
 // - You can always change your own name/instrument or leave a band.
 // - Members can suggest events (MGMT accept or decline) and add their own
 //   "not available" dates.
+// - Merch: MGMT set up products, photos, bundles and what things cost (costs
+//   are MGMT only). Every member can sell, move stock and count the cash box.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -105,6 +107,39 @@ service cloud.firestore {
       // Contracts, fees etc.: MGMT only.
       match /privateDocs/{docId} {
         allow read, write: if isMgmt(bandId);
+      }
+
+      // ---------- Merch ----------
+      // Products: MGMT add/edit/delete. Members may only change the stock counts (selling, moving).
+      match /products/{productId} {
+        allow read: if isMember(bandId);
+        allow create, delete: if isMgmt(bandId);
+        allow update: if isMgmt(bandId) || (isMember(bandId) && onlyChanges(['stock']));
+      }
+      // Product photos (small, compressed). Max ~400 KB each.
+      match /photos/{photoId} {
+        allow read: if isMember(bandId);
+        allow write: if isMgmt(bandId) && request.resource.data.data is string && request.resource.data.data.size() < 400000;
+        allow delete: if isMgmt(bandId);
+      }
+      // What a product cost us: MGMT only.
+      match /costs/{productId} {
+        allow read, write: if isMgmt(bandId);
+      }
+      match /bundles/{bundleId} {
+        allow read: if isMember(bandId);
+        allow write: if isMgmt(bandId);
+      }
+      // Sales: every member can sell (saved under their name) and undo their own sale.
+      match /sales/{saleId} {
+        allow read: if isMember(bandId);
+        allow create: if isMember(bandId) && request.resource.data.by == request.auth.uid;
+        allow update: if isMgmt(bandId);
+        allow delete: if isMgmt(bandId) || (isMember(bandId) && resource.data.by == request.auth.uid);
+      }
+      // Show nights at the merch table (cash box float, counted cash, closed).
+      match /nights/{nightId} {
+        allow read, write: if isMember(bandId);
       }
 
       // "Not available" dates: every member manages their own; the band can see them.

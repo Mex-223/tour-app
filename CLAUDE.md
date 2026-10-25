@@ -11,3 +11,6 @@
   Firestore client can get terminated in the background; `withRetry`/`listen` reconnect and repeat.
 - Security rules live in `firestore.rules`; the owner pastes them into the Firebase console by hand. If data shape or permissions change, update the rules and tell him to re-paste.
 - Test without Firebase: `?mock=demo` (seeded) or `?mock=1` (in-memory test backend in `js/backend/mock.js`, mirrors the rules roughly).
+- Merch (step 4a): `js/merch.js` (sums), `js/views/merch.js` (screens), `js/merch-actions.js` (taps/forms), `js/photo.js` (shrinks photos).
+  Band subcollections: products (stock map `stock.{colourId}.{van|storage}.{size}`, changed with `increment` via `changeStock`),
+  photos (`{pid}_{cid}`, base64 JPEG < 400 KB), costs (MGMT only), bundles, sales (`by` = seller), nights (key = eventId or `d-YYYY-MM-DD`).

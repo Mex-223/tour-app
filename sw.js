@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.6.5';
-const NOTES = 'Guest PDF: choose who goes in the "Call this first" box: a team contact, the contact on site from the show day, or someone new.';
+const VERSION = '1.7.0';
+const NOTES = 'New: Merch. Products with photos, colours and sizes, stock in the van box and storage, selling at the merch table with bundles, and a night report with cash count.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
@@ -32,7 +32,10 @@ const SHELL = [
   './js/views/schedule.js',
   './js/views/day.js',
   './js/views/people.js',
-  './js/views/later.js',
+  './js/views/merch.js',
+  './js/merch.js',
+  './js/merch-actions.js',
+  './js/photo.js',
   './js/views/auth.js',
   './js/views/me.js',
   './js/views/band.js',

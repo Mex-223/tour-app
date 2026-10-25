@@ -31,6 +31,7 @@ const authErr = (code) => { const e = new Error(code); e.code = code; throw e; }
 const uid = () => db.current;
 const isMember = (b) => !!(db.members[b] && db.members[b][uid()]);
 const isMgmt = (b) => isMember(b) && db.members[b][uid()].role === 'mgmt';
+const mlist = (b, name) => { db.lists = db.lists || {}; const B = (db.lists[b] = db.lists[b] || {}); return (B[name] = B[name] || {}); };
 
 function changed() {
   persist();
@@ -154,7 +155,7 @@ export const backend = {
   watchList(b, name, cb, onError) {
     return addWatcher(() => {
       if (!isMember(b)) deny();
-      if (name === 'privateDocs' && !isMgmt(b)) deny();
+      if ((name === 'privateDocs' || name === 'costs') && !isMgmt(b)) deny();
       return Object.entries(((db.lists || {})[b] || {})[name] || {}).map(([id, x]) => ({ id, ...clone(x) }));
     }, cb, onError);
   },
@@ -172,6 +173,55 @@ export const backend = {
     delete db.lists[b][name][id];
     changed();
   },
+  // ---------- Merch (mirrors the rules: MGMT edit products; members sell, move stock, count the cash) ----------
+  async saveMerch(b, name, id, data) {
+    const memberOk = ['nights'].includes(name) && isMember(b);
+    if (!isMgmt(b) && !memberOk) deny();
+    if (name === 'photos' && String(data.data || '').length > 400000) deny();
+    const L = mlist(b, name);
+    const key = id || 'x-' + randomCode(8);
+    L[key] = clone(data);
+    changed();
+    return key;
+  },
+  async deleteProduct(b, pid, photoKeys) {
+    if (!isMgmt(b)) deny();
+    delete mlist(b, 'products')[pid]; delete mlist(b, 'costs')[pid];
+    photoKeys.forEach((k) => delete mlist(b, 'photos')[k]);
+    changed();
+  },
+  async changeStock(b, moves, extra) {
+    if (!isMember(b)) deny();
+    if (extra) extra();
+    const P = mlist(b, 'products');
+    moves.forEach((m) => {
+      const p = P[m.pid];
+      if (!p) return;
+      const st = (p.stock = p.stock || {});
+      const c = (st[m.cid] = st[m.cid] || {});
+      const l = (c[m.loc] = c[m.loc] || {});
+      l[m.size] = (l[m.size] || 0) + m.n;
+    });
+    changed();
+  },
+  async recordSale(b, saleId, sale, moves) {
+    if (!isMember(b) || sale.by !== uid()) deny();
+    return this.changeStock(b, moves, () => { mlist(b, 'sales')[saleId] = clone(sale); });
+  },
+  async undoSale(b, saleId, moves) {
+    const s = mlist(b, 'sales')[saleId];
+    if (!s) return;
+    if (s.by !== uid() && !isMgmt(b)) deny();
+    return this.changeStock(b, moves, () => { delete mlist(b, 'sales')[saleId]; });
+  },
+  async saveNight(b, key, data) {
+    if (!isMember(b)) deny();
+    const L = mlist(b, 'nights');
+    L[key] = { ...(L[key] || {}), ...clone(data) };
+    changed();
+  },
+  newId() { return 'x-' + randomCode(12); },
+
   watchAway(b, cb, onError) {
     return addWatcher(() => {
       if (!isMember(b)) deny();
