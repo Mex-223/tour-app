@@ -326,6 +326,8 @@ button.tile { border: 1px solid var(--line); text-align: left; cursor: pointer; 
   #app.has-shell .desk-only { display: flex; }
   #app.has-shell .nav-sheet { display: flex; bottom: 24px; border-radius: 22px; border: 1px solid var(--line); max-width: 420px; }
   #app.has-shell .nav-backdrop { display: block; }
+  #app.has-shell .pick-sheet { display: flex; position: fixed; z-index: 31; left: 0; right: 0; bottom: auto; top: 50%; transform: translateY(-50%); margin: 0 auto; border-radius: 22px; border: 1px solid var(--line); max-width: 460px; }
+  #app.has-shell .pick-backdrop { display: block; position: fixed; z-index: 30; }
   #app.has-shell .desk-spacer { display: block; flex: 1; }
 
   .sidebar { display: flex; flex-direction: column; gap: 22px; padding: 22px 14px; background: #121316; border-right: 1px solid var(--line-soft); overflow-y: auto; }
