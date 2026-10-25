@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.6.4';
-const NOTES = 'Guest PDF: compact layout with bigger, easier-to-tap phone numbers and contacts.';
+const VERSION = '1.6.5';
+const NOTES = 'Guest PDF: choose who goes in the "Call this first" box: a team contact, the contact on site from the show day, or someone new.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [

@@ -1,5 +1,5 @@
 // EXPORT — guest PDF for support bands, crew, promoters, drivers (MGMT only).
-import { state, mgmtBands, bandById, events, eventById, contactsOf, membersOf, docsOf } from '../store.js';
+import { state, mgmtBands, bandById, events, eventById, contactsOf, membersOf, docsOf, CONTACT_ROLES } from '../store.js';
 import { esc, todayISO, fmtDay } from '../utils.js';
 import { icons } from '../icons.js';
 import { TYPE_LABEL } from '../data.js';
@@ -30,6 +30,13 @@ export function exportContacts(bandId) {
   return [...team, ...members];
 }
 
+// On-site contacts saved in the show days (venue → contact on site)
+export function venueContactOptions(bandId) {
+  return exportEvents(bandId).filter((e) => e.venue && e.venue.contact && (e.venue.contact.name || e.venue.contact.phone))
+    .map((e) => ({ key: 'v:' + e.id, eventId: e.id, name: e.venue.contact.name || e.venue.name || 'Contact on site', role: e.venue.contact.role || 'Contact on site',
+      phone: e.venue.contact.phone || '', day: `${fmtDay(e.date)}${e.venue.name ? ' · ' + e.venue.name : ''}`, ok: true }));
+}
+
 // The "PDF ready" box (kept in state so a live data update doesn't wipe it)
 export function resultHtml() {
   const r = state.exportResult;
@@ -57,7 +64,10 @@ export function renderExport(eventId) {
   const evs = exportEvents(x.band);
   const preset = x.eventId ? [x.eventId] : evs.filter((e) => e.type === 'show').slice(0, 3).map((e) => e.id);
   const contacts = exportContacts(x.band);
-  const firstOk = contacts.find((c) => c.ok);
+  const okContacts = contacts.filter((c) => c.ok);
+  const venueOpts = venueContactOptions(x.band);
+  const presetVenue = venueOpts.find((c) => preset.includes(c.eventId));
+  const primaryDefault = okContacts[0] ? okContacts[0].key : (presetVenue || venueOpts[0] || { key: 'new' }).key;
   const guestDocs = docsOf(x.band).filter((d) => !d.private && d.guest && /^https?:/i.test(d.url || ''));
 
   return head + `<main id="main">
@@ -79,9 +89,21 @@ export function renderExport(eventId) {
         `<label class="choice-opt"><input type="checkbox" name="sections" value="${k}" ${k === 'travel' ? '' : 'checked'}><span>${esc(label)}</span></label>`).join('')}</div></fieldset>
 
       <fieldset class="choice"><legend class="lbl-text">Contacts</legend>
-        ${contacts.length ? `<div class="check-list">${contacts.map((c) => `<label class="check ${c.ok ? '' : 'disabled'}"><input type="checkbox" name="contacts" value="${esc(c.key)}" ${c.ok ? 'checked' : 'disabled'}><span class="grow">${esc(c.name)} <span class="muted">· ${esc(c.role || '')}</span>${c.ok ? '' : '<span class="muted small"><br>Not shared in guest PDFs</span>'}</span></label>`).join('')}</div>
-          <label class="lbl">Call this first<select name="primary">${contacts.filter((c) => c.ok).map((c) => `<option value="${esc(c.key)}" ${firstOk && c.key === firstOk.key ? 'selected' : ''}>${esc(c.name)} · ${esc(c.role || '')}</option>`).join('')}</select></label>`
-          : `<div class="empty">No team contacts yet. Add your tour manager, booking and FOH under People → Team contacts.</div>`}
+        ${contacts.length ? `<div class="check-list">${contacts.map((c) => `<label class="check ${c.ok ? '' : 'disabled'}"><input type="checkbox" name="contacts" value="${esc(c.key)}" ${c.ok ? 'checked' : 'disabled'}><span class="grow">${esc(c.name)} <span class="muted">· ${esc(c.role || '')}</span>${c.ok ? '' : '<span class="muted small"><br>Not shared in guest PDFs</span>'}</span></label>`).join('')}</div>`
+          : `<p class="muted small">No team contacts saved yet. You can still pick the contact from the show day below, or add someone new.</p>`}
+        <label class="lbl">Call this first (big box at the top)<select name="primary">
+          ${okContacts.length ? `<optgroup label="Team contacts">${okContacts.map((c) => `<option value="${esc(c.key)}" ${c.key === primaryDefault ? 'selected' : ''}>${esc(c.name)} · ${esc(c.role || '')}</option>`).join('')}</optgroup>` : ''}
+          ${venueOpts.length ? `<optgroup label="Contact on site (from the show days)">${venueOpts.map((c) => `<option value="${esc(c.key)}" ${c.key === primaryDefault ? 'selected' : ''}>${esc(c.name)} · ${esc(c.day)}</option>`).join('')}</optgroup>` : ''}
+          <option value="new" ${primaryDefault === 'new' ? 'selected' : ''}>+ Add someone new…</option>
+          <option value="" ${primaryDefault === '' ? 'selected' : ''}>Nobody (no box)</option>
+        </select></label>
+        <div class="stack-8 new-primary" ${primaryDefault === 'new' ? '' : 'hidden'}>
+          <label class="lbl">Name<input type="text" name="np_name" maxlength="60" placeholder="e.g. Mex"></label>
+          <label class="lbl">Role<select name="np_role">${CONTACT_ROLES.map((r) => `<option ${r === 'Tour manager' ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label>
+          <label class="lbl">Phone<input type="tel" name="np_phone" maxlength="30" placeholder="+43 …"></label>
+          <label class="lbl">Email (optional)<input type="email" name="np_email" maxlength="80"></label>
+          <label class="check"><input type="checkbox" name="np_save" checked><span>Also save to team contacts for next time</span></label>
+        </div>
         <label class="check"><input type="checkbox" name="venueContacts" checked><span>Contact on site for each day (from the events)</span></label>
       </fieldset>
 

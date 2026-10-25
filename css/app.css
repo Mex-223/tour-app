@@ -381,3 +381,5 @@ button.tile { border: 1px solid var(--line); text-align: left; cursor: pointer; 
   .sheet { animation: none; }
   #toast, .sec summary .chev { transition: none; }
 }
+.new-primary[hidden] { display: none; }
+.new-primary { padding: 12px; border: 1px solid var(--line); border-radius: 12px; }

@@ -18,7 +18,7 @@ import { renderBand, inviteUrl } from './views/band.js';
 import { renderEditor, collectDraft, toEventData } from './views/editor.js';
 import { renderContactForm } from './views/contacts.js';
 import { renderDocs, renderDocForm } from './views/docs.js';
-import { renderExport, exportEvents, exportContacts, resultHtml } from './views/export.js';
+import { renderExport, exportEvents, exportContacts, venueContactOptions, resultHtml } from './views/export.js';
 import { friendlyError } from './backend/shared.js';
 import { initUpdates, currentVersion } from './updates.js';
 
@@ -401,7 +401,21 @@ const forms = {
     const allContacts = exportContacts(band.id).filter((c) => c.ok);
     const chosen = f.getAll('contacts').map(String);
     const contacts = allContacts.filter((c) => chosen.includes(c.key));
-    const primary = contacts.find((c) => c.key === String(f.get('primary'))) || contacts[0] || null;
+    const pick = String(f.get('primary') ?? '');
+    let primary = null;
+    if (pick === 'new') {
+      const np = { name: String(f.get('np_name') || '').trim(), role: String(f.get('np_role') || 'Other'), phone: String(f.get('np_phone') || '').trim(), email: String(f.get('np_email') || '').trim() };
+      if (!np.name || !(np.phone || np.email)) { toast('For "Call this first", please add a name and a phone number (or email).'); return; }
+      primary = { key: 'new', ...np };
+      if (f.get('np_save') && !state.exp.savedNew) {
+        state.exp.savedNew = true; // only save once, even if the PDF is created again
+        backend.saveItem(band.id, 'contacts', null, { ...np, note: '', share: true }).catch(() => {});
+      }
+    } else if (pick.startsWith('v:')) {
+      primary = venueContactOptions(band.id).find((c) => c.key === pick) || null;
+    } else if (pick) {
+      primary = contacts.find((c) => c.key === pick) || allContacts.find((c) => c.key === pick) || null;
+    }
     const ordered = primary ? [primary, ...contacts.filter((c) => c !== primary)] : contacts;
     const docIds = f.getAll('docs').map(String);
     const docs = docsOfBand(band.id).filter((d) => docIds.includes(d.id));
@@ -465,6 +479,12 @@ document.addEventListener('input', (ev) => {
 });
 
 document.addEventListener('change', (ev) => {
+  // Guest PDF: "Add someone new" shows the fields for the new contact
+  if (ev.target.name === 'primary' && ev.target.closest('form[data-form="export"]')) {
+    const box = ev.target.form.querySelector('.new-primary');
+    if (box) box.hidden = ev.target.value !== 'new';
+    return;
+  }
   // Guest PDF: switching the band shows that band's days and contacts
   if (ev.target.name === 'band' && ev.target.closest('form[data-form="export"]')) {
     if (state.exp) state.exp.band = ev.target.value;
