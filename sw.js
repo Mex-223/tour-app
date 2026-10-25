@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.6.1';
-const NOTES = 'Fix: "client has already been terminated" when saving. The app now reconnects and saves automatically.';
+const VERSION = '1.6.2';
+const NOTES = 'Saving works reliably again on iPhone. New: choose Apple Maps, Google Maps or Waze for navigation.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
@@ -24,6 +24,7 @@ const SHELL = [
   './js/icons.js',
   './js/components.js',
   './js/updates.js',
+  './js/nav.js',
   './js/firebase-config.js',
   './js/backend/firebase.js',
   './js/backend/shared.js',

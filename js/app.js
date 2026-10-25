@@ -5,7 +5,8 @@ import {
 } from './store.js';
 const docsOfBand = docsOf;
 
-import { bottomNav, sheet, sidebar } from './components.js';
+import { bottomNav, sheet, sidebar, navSheet } from './components.js';
+import { availableNavApps, getNavApp, setNavApp, openNav } from './nav.js';
 import { renderToday } from './views/today.js';
 import { renderSchedule, shiftMonth, gotoDate } from './views/schedule.js';
 import { renderDay } from './views/day.js';
@@ -105,7 +106,7 @@ function render() {
   const s = screenFor(route);
   app.className = s.shell ? 'has-shell' : '';
   app.innerHTML = s.shell
-    ? `<div class="shell">${sidebar(s.side)}<div class="content">${s.html}</div></div>${s.nav ? bottomNav(s.tab) + sheet() : ''}`
+    ? `<div class="shell">${sidebar(s.side)}<div class="content">${s.html}</div></div>${s.nav ? bottomNav(s.tab) + sheet() : ''}${navSheet(availableNavApps())}`
     : s.html;
   const main = document.getElementById('main');
   if (main) main.scrollTop = keepScroll;
@@ -272,6 +273,18 @@ const actions = {
     run(async () => { await backend.deleteItem(el.dataset.band, el.dataset.private ? 'privateDocs' : 'docs', el.dataset.id); location.hash = '#/docs'; toast('Deleted.'); });
     return 'none';
   },
+  'navigate': (el) => {
+    const app = getNavApp();
+    if (app) { openNav(app, el.dataset.q); return 'none'; }
+    state.navQuery = el.dataset.q;
+  },
+  'nav-go': (el) => {
+    const remember = document.getElementById('nav-remember');
+    if (remember && remember.checked) setNavApp(el.dataset.app);
+    openNav(el.dataset.app, state.navQuery);
+    state.navQuery = null;
+  },
+  'nav-close': () => { state.navQuery = null; },
   'share-pdf': () => {
     const f = state.lastPdf;
     if (!f) return 'none';
@@ -321,6 +334,7 @@ const forms = {
     name: f.get('name').trim(), instrument: String(f.get('instrument') || '').trim(), email: state.user.email || ''
   })),
   profile: (f) => run(async () => {
+    setNavApp(String(f.get('navApp') || '') || null);
     const info = { name: f.get('name').trim(), instrument: String(f.get('instrument') || '').trim(), phone: String(f.get('phone') || '').trim(), sharePhone: !!f.get('sharePhone') };
     await backend.saveProfile(me.id, info);
     await backend.updateMyMemberInfo(me.id, bands.map((b) => b.id), info);
@@ -473,6 +487,7 @@ document.addEventListener('focusout', () => {
 });
 
 document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && state.navQuery) { state.navQuery = null; render(); return; }
   if (ev.key === 'Escape' && state.sheetOpen) {
     state.sheetOpen = false;
     render();

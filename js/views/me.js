@@ -3,6 +3,7 @@ import { state, me, bands, isMgmt, membersOf, roleName, myAway } from '../store.
 import { esc, fmtDay, todayISO } from '../utils.js';
 import { icons } from '../icons.js';
 import { instrumentOptions, createBandForm } from './auth.js';
+import { availableNavApps, getNavApp } from '../nav.js';
 
 function awayList() {
   const today = todayISO();
@@ -39,6 +40,10 @@ export function renderMe() {
         <label class="lbl">Instrument / role${instrumentOptions(me.instrument)}</label>
         <label class="lbl">Phone (your bandmates can see it)<input type="tel" name="phone" maxlength="30" value="${esc(me.phone || '')}" placeholder="+43 …"></label>
         <label class="check"><input type="checkbox" name="sharePhone" ${me.sharePhone ? 'checked' : ''}><span>My number may appear in guest PDFs (support bands, crew)</span></label>
+        <label class="lbl">Navigation app on this device<select name="navApp">
+          <option value="" ${!getNavApp() ? 'selected' : ''}>Ask every time</option>
+          ${availableNavApps().map((a) => `<option value="${a.id}" ${getNavApp() === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+        </select></label>
         <button class="btn-primary" type="submit" ${state.busy ? 'disabled' : ''}>Save</button>
       </form>
 

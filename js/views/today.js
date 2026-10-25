@@ -4,6 +4,7 @@ import { topBar, eventRow, bandTag, subline } from '../components.js';
 import { icons } from '../icons.js';
 import { esc, todayISO, fmtDay, daysBetween, minutesOf, nowMinutes, fmtDuration, isDialable } from '../utils.js';
 import { TYPE_LABEL } from '../data.js';
+import { navigable } from '../nav.js';
 
 function whenLabel(today, date) {
   const n = daysBetween(today, date);
@@ -77,12 +78,12 @@ function timeline(e) {
 function quickLinks(e) {
   const v = e.venue;
   if (!v) return '';
-  const addr = v.address && !/[[\]]/.test(v.address)
-    ? `https://maps.apple.com/?q=${encodeURIComponent(v.name + ' ' + v.address)}` : null;
+  const q = navigable(v.address) ? [v.name, v.address].filter(Boolean).join(', ') : null;
   const c = v.contact;
   const tiles = [];
-  tiles.push(`<a class="tile" href="${addr ? esc(addr) : '#/day/' + esc(e.id)}" ${addr ? 'target="_blank" rel="noopener"' : ''}>
-    ${icons.pin()}<span class="muted small">Venue · navigate</span><span class="tile-main">${esc(v.name)}</span></a>`);
+  tiles.push(q
+    ? `<button type="button" class="tile" data-action="navigate" data-q="${esc(q)}">${icons.pin()}<span class="muted small">Venue · navigate</span><span class="tile-main">${esc(v.name || v.address)}</span></button>`
+    : `<a class="tile" href="#/day/${esc(e.id)}">${icons.pin()}<span class="muted small">Venue</span><span class="tile-main">${esc(v.name || 'Details')}</span></a>`);
   if (c) {
     const tel = isDialable(c.phone) ? `tel:${c.phone.replace(/\s/g, '')}` : `#/day/${e.id}`;
     tiles.push(`<a class="tile" href="${esc(tel)}">${icons.phone()}<span class="muted small">${esc(c.role)} · call</span><span class="tile-main">${esc(c.name)}</span></a>`);

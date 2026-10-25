@@ -65,6 +65,20 @@ export function sidebar(active) {
   </aside>`;
 }
 
+// "Navigate with…" chooser
+export function navSheet(apps) {
+  if (!state.navQuery) return '';
+  return `<div class="sheet-backdrop nav-backdrop" data-action="nav-close"></div>
+  <div class="sheet nav-sheet" role="dialog" aria-modal="true" aria-label="Navigate with">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-sep">Navigate with</div>
+    <p class="muted small nav-q">${esc(state.navQuery)}</p>
+    ${apps.map((a) => `<button type="button" class="sheet-opt" data-action="nav-go" data-app="${esc(a.id)}">
+      <span class="nav-app-ico" aria-hidden="true">${icons.pin(18)}</span><span class="sheet-text"><span class="sheet-title">${esc(a.name)}</span></span></button>`).join('')}
+    <label class="check nav-remember"><input type="checkbox" id="nav-remember"><span>Remember on this device (change it in your profile)</span></label>
+  </div>`;
+}
+
 export function sheet() {
   if (!state.sheetOpen) return '';
   const opt = (value, label, sub, dot) => {

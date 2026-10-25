@@ -4,6 +4,7 @@ import { bandTag, badges } from '../components.js';
 import { icons } from '../icons.js';
 import { esc, fmtDayLong, isDialable } from '../utils.js';
 import { TYPE_LABEL } from '../data.js';
+import { navigable } from '../nav.js';
 
 function section(title, summary, content, open = false) {
   return `<details class="sec" ${open ? 'open' : ''}>
@@ -71,13 +72,12 @@ export function renderDay(id) {
   if (hasAny(e.venue)) {
     const v = e.venue;
     const c = v.contact || {};
-    const addr = [v.name, v.address].filter(Boolean).join(' ');
-    const mapUrl = v.address && !/[[\]]/.test(v.address) ? `https://maps.apple.com/?q=${encodeURIComponent(addr)}` : null;
+    const navQ = navigable(v.address) ? [v.name, v.address].filter(Boolean).join(', ') : null;
     html += section('Venue', v.name || '', `
       ${field('Address', v.address)}${field('Load-in', v.loadIn)}${field('Tech', v.tech)}
       ${(c.name || c.phone) ? `<div class="contact-line"><div class="field grow"><span class="label">Contact person</span><span>${esc(c.name || '')}${c.role ? ' · ' + esc(c.role) : ''}</span><span class="muted small">${esc(c.phone || '')}</span></div>
         ${phoneLink(c.phone, 'Call venue contact')}</div>` : ''}
-      ${mapUrl ? `<a class="btn-outline" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icons.pin(18)}&nbsp;Navigate</a>` : ''}`, true);
+      ${navQ ? `<button type="button" class="btn-outline" data-action="navigate" data-q="${esc(navQ)}">${icons.pin(18)}&nbsp;Navigate to venue</button>` : ''}`, true);
   } else if (e.type === 'show') {
     html += addRow('Venue', e, canEdit);
   }
@@ -91,7 +91,9 @@ export function renderDay(id) {
   }
 
   if (hasAny(e.hotel)) {
-    html += section('Hotel', e.hotel.name || '', `${field('Address', e.hotel.address)}${field('Check-in', e.hotel.checkIn)}`);
+    const hq = navigable(e.hotel.address) ? [e.hotel.name, e.hotel.address].filter(Boolean).join(', ') : null;
+    html += section('Hotel', e.hotel.name || '', `${field('Address', e.hotel.address)}${field('Check-in', e.hotel.checkIn)}
+      ${hq ? `<button type="button" class="btn-outline" data-action="navigate" data-q="${esc(hq)}">${icons.pin(18)}&nbsp;Navigate to hotel</button>` : ''}`);
   } else if (e.type === 'show' || e.type === 'travel') {
     html += addRow('Hotel', e, canEdit);
   }
