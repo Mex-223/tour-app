@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.6.2';
-const NOTES = 'Saving works reliably again on iPhone. New: choose Apple Maps, Google Maps or Waze for navigation.';
+const VERSION = '1.6.3';
+const NOTES = 'Guest PDF redesigned: more compact, band colour, timetable and venue side by side, guest band rows highlighted.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
