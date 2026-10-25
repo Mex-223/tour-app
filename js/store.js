@@ -268,6 +268,14 @@ function changed() {
   onChange();
 }
 
+function watchMyProfile(uid) {
+  unsubProfile = backendRef.watchProfile(uid, (p) => {
+    state.profile = p || {};
+    syncBands(state.profile.bandIds || []);
+    changed();
+  }, () => { state.profile = state.profile || {}; changed(); });
+}
+
 export function startSync(backend, cb) {
   backendRef = backend;
   onChange = cb;
@@ -276,15 +284,22 @@ export function startSync(backend, cb) {
     state.user = user;
     state.profile = undefined;
     state.authReady = true;
-    if (user) {
-      unsubProfile = backend.watchProfile(user.uid, (p) => {
-        state.profile = p || {};
-        syncBands(state.profile.bandIds || []);
-        changed();
-      }, () => { state.profile = state.profile || {}; changed(); });
-    }
+    if (user) watchMyProfile(user.uid);
     changed();
   });
+  // After a reconnect: restart all live updates, but keep what's on screen.
+  backend.onReset = restartSync;
+}
+
+export function restartSync() {
+  if (!backendRef || !state.user) return;
+  if (unsubProfile) { try { unsubProfile(); } catch (e) { /* ignore */ } unsubProfile = null; }
+  Object.keys(bandSubs).forEach((id) => {
+    (bandSubs[id] || []).forEach((u) => { try { u(); } catch (e) { /* ignore */ } });
+    delete bandSubs[id];
+  });
+  watchMyProfile(state.user.uid);
+  syncBands((state.profile && state.profile.bandIds) || []);
 }
 
 // Bands still loading? (profile lists them but their data hasn't arrived yet)

@@ -27,7 +27,9 @@ export function friendlyError(err) {
     'auth/operation-not-supported-in-this-environment': 'Google sign-in doesn\'t work in this view. Please use email and password.',
     'auth/unauthorized-domain': 'This web address isn\'t allowed for logins yet (Firebase → Authentication → Settings → Authorized domains).',
     'permission-denied': 'You don\'t have permission to do that.',
+    'failed-precondition': 'The connection was reset. Please try again.',
     'unavailable': 'No connection right now. Your change will be saved when you\'re back online.'
   };
+  if (/terminated/i.test((err && err.message) || '')) return 'The connection was reset. Please try again; it should work now.';
   return map[code] || (err && err.message) || 'Something went wrong. Please try again.';
 }

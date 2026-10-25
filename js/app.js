@@ -494,7 +494,21 @@ window.addEventListener('hashchange', () => {
 });
 
 // ---------- Start ----------
+const RECOVER_KEY = 'tourapp.recover';
+function restoreAfterReload() {
+  try {
+    const raw = sessionStorage.getItem(RECOVER_KEY);
+    if (!raw) return;
+    sessionStorage.removeItem(RECOVER_KEY);
+    const r = JSON.parse(raw);
+    if (!r || Date.now() - r.at > 5 * 60 * 1000) return;
+    if (r.draft && r.hash === location.hash) state.draft = r.draft;
+    setTimeout(() => toast('The connection was reset. Your changes are still here, please tap save again.'), 800);
+  } catch (e) { /* ignore */ }
+}
+
 async function boot() {
+  restoreAfterReload();
   render();
   try {
     if (params.has('mock')) {
@@ -515,7 +529,16 @@ async function boot() {
     return;
   }
   backend.onWriteError = (err) => toast(friendlyError(err));
+  // Last resort if the connection can't be reopened: reload, but keep the form filled in.
+  backend.onFatal = () => {
+    try { sessionStorage.setItem(RECOVER_KEY, JSON.stringify({ hash: location.hash, draft: state.draft, at: Date.now() })); } catch (e) { /* ignore */ }
+    location.reload();
+  };
   startSync(backend, scheduleRender);
+  // Coming back from the background: make sure the connection is still open.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && backend.checkConnection) backend.checkConnection();
+  });
 }
 
 boot();

@@ -91,6 +91,7 @@ export function resetMock() { db = empty(); persist(); }
 
 export const backend = {
   kind: 'mock',
+  checkConnection() {},
 
   onAuth(cb) {
     authListeners.add(cb);
