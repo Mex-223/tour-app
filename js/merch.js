@@ -4,9 +4,9 @@ import { todayISO, addDays } from './utils.js';
 
 export const LOCS = [['van', 'Van box'], ['storage', 'Storage']];
 export const LOC_NAME = { van: 'Van box', storage: 'Storage' };
-export const KINDS = [['shirt', 'T-shirt'], ['hoodie', 'Hoodie'], ['vinyl', 'Vinyl'], ['cd', 'CD'], ['tote', 'Tote bag'], ['cap', 'Cap'], ['poster', 'Poster'], ['other', 'Other']];
+export const KINDS = [['shirt', 'T-shirt'], ['hoodie', 'Hoodie'], ['vinyl', 'Vinyl'], ['cd', 'CD'], ['tote', 'Tote bag'], ['socks', 'Socks'], ['cap', 'Cap'], ['poster', 'Poster'], ['other', 'Other']];
 export const KIND_NAME = Object.fromEntries(KINDS);
-export const SIZE_PRESETS = { shirt: 'S, M, L, XL', hoodie: 'S, M, L, XL', vinyl: 'LP', cd: 'CD', tote: 'One size', cap: 'One size', poster: 'One size', other: 'One size' };
+export const SIZE_PRESETS = { shirt: 'S, M, L, XL', hoodie: 'S, M, L, XL', vinyl: 'LP', cd: 'CD', tote: 'One size', socks: '35–38, 39–42, 43–46', cap: 'One size', poster: 'One size', other: 'One size' };
 export const COLOURS = [
   ['Black', '#17181B'], ['White', '#EDEBE6'], ['Grey', '#7D8189'], ['Navy', '#1F2A44'], ['Red', '#B3261E'],
   ['Green', '#2F5D3A'], ['Yellow', '#F5C542'], ['Pink', '#E46AA8'], ['Beige', '#D9CBB0'], ['Blue', '#3B6FD8']
