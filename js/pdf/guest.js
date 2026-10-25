@@ -83,23 +83,23 @@ export function buildGuestPdf({ band, recipientType, recipientName, events, sect
 
   // ---------- Contacts ----------
   if (primary) {
-    const h = 58;
+    const h = 68;
     doc.rect(M, y, W, h, { fill: light, stroke: tint(accent, 0.6) });
     doc.rect(M, y, 4, h, { fill: accent });
     label(M + 16, y + 10, 'Call this first', '#5A4300');
-    doc.text(M + 16, y + 23, primary.name || '', { size: 15, bold: true });
+    doc.text(M + 16, y + 24, primary.name || '', { size: 18, bold: true });
     const sub = [primary.role, primary.note].filter(Boolean).join(' · ');
-    if (sub) doc.text(M + 16, y + 41, doc.wrap(sub, 9.5, false, W * 0.48)[0], { size: 9.5, color: MUTED });
+    if (sub) doc.text(M + 16, y + 48, doc.wrap(sub, 10.5, false, W * 0.62)[0], { size: 10.5, color: MUTED });
     // phone / email on the right
     let ry = y + 18;
     if (primary.phone) {
-      doc.text(A4.w - M - 16, ry, primary.phone, { size: 13, bold: true, color: tel(primary.phone) ? LINK : INK, align: 'right' });
-      if (tel(primary.phone)) doc.link(A4.w - M - 16 - doc.width(primary.phone, 13, true), ry - 1, doc.width(primary.phone, 13, true), 17, tel(primary.phone));
-      ry += 19;
+      doc.text(A4.w - M - 16, ry, primary.phone, { size: 16, bold: true, color: tel(primary.phone) ? LINK : INK, align: 'right' });
+      if (tel(primary.phone)) doc.link(A4.w - M - 16 - doc.width(primary.phone, 16, true), ry - 1, doc.width(primary.phone, 16, true), 20, tel(primary.phone));
+      ry += 23;
     }
     if (primary.email) {
-      doc.text(A4.w - M - 16, ry, primary.email, { size: 10, color: mail(primary.email) ? LINK : INK, align: 'right' });
-      if (mail(primary.email)) doc.link(A4.w - M - 16 - doc.width(primary.email, 10), ry - 1, doc.width(primary.email, 10), 14, mail(primary.email));
+      doc.text(A4.w - M - 16, ry, primary.email, { size: 11.5, color: mail(primary.email) ? LINK : INK, align: 'right' });
+      if (mail(primary.email)) doc.link(A4.w - M - 16 - doc.width(primary.email, 11.5), ry - 1, doc.width(primary.email, 11.5), 15, mail(primary.email));
     }
     y += h + 10;
   }
@@ -109,20 +109,20 @@ export function buildGuestPdf({ band, recipientType, recipientName, events, sect
     const cols = 3;
     const gap = 8;
     const cw = (W - gap * (cols - 1)) / cols;
-    const ch = 50;
+    const ch = 64;
     for (let i = 0; i < others.length; i += cols) {
       ensure(ch + 8);
       others.slice(i, i + cols).forEach((c, k) => {
         const x = M + k * (cw + gap);
         doc.rect(x, y, cw, ch, { stroke: LINE });
-        label(x + 10, y + 8, c.role || 'Contact', c.role === 'Emergency' ? '#9B1C1C' : MUTED);
-        doc.text(x + 10, y + 20, doc.wrap(c.name || '', 10.5, true, cw - 20)[0] || '', { size: 10.5, bold: true });
+        label(x + 10, y + 9, c.role || 'Contact', c.role === 'Emergency' ? '#9B1C1C' : MUTED);
+        doc.text(x + 10, y + 23, doc.wrap(c.name || '', 12.5, true, cw - 20)[0] || '', { size: 12.5, bold: true });
         const line = c.phone || c.email || '';
         const link = c.phone ? tel(c.phone) : mail(c.email);
         if (line) {
-          const t = doc.wrap(line, 9.5, false, cw - 20)[0];
-          doc.text(x + 10, y + 35, t, { size: 9.5, color: link ? LINK : INK });
-          if (link) doc.link(x + 10, y + 34, doc.width(t, 9.5), 13, link);
+          const t = doc.wrap(line, 12, true, cw - 20)[0];
+          doc.text(x + 10, y + 42, t, { size: 12, bold: true, color: link ? LINK : INK });
+          if (link) doc.link(x + 10, y + 41, doc.width(t, 12, true), 16, link);
         }
       });
       y += ch + gap;
@@ -133,21 +133,21 @@ export function buildGuestPdf({ band, recipientType, recipientName, events, sect
   if (venueContacts && sorted.length > 1) {
     const rows = sorted.filter((e) => e.venue && e.venue.contact && (e.venue.contact.name || e.venue.contact.phone));
     if (rows.length) {
-      ensure(30 + rows.length * 16);
+      ensure(30 + rows.length * 20);
       y += 4;
       label(M, y, 'Contact on site, by day');
       y += 14;
       rows.forEach((e) => {
         const c = e.venue.contact;
-        doc.text(M, y, fmtDay(e.date), { size: 9.5, bold: true });
-        doc.text(M + 78, y, doc.wrap([e.venue.name, e.place].filter(Boolean).join(', '), 9.5, false, 170)[0] || '', { size: 9.5 });
-        doc.text(M + 258, y, doc.wrap([c.name, c.role].filter(Boolean).join(' · '), 9.5, false, 150)[0] || '', { size: 9.5 });
+        doc.text(M, y, fmtDay(e.date), { size: 11, bold: true });
+        doc.text(M + 82, y, doc.wrap([e.venue.name, e.place].filter(Boolean).join(', '), 11, false, 160)[0] || '', { size: 11 });
+        doc.text(M + 252, y, doc.wrap([c.name, c.role].filter(Boolean).join(' · '), 11, true, 140)[0] || '', { size: 11, bold: true });
         if (c.phone) {
-          doc.text(A4.w - M, y, c.phone, { size: 9.5, color: tel(c.phone) ? LINK : INK, align: 'right' });
-          if (tel(c.phone)) doc.link(A4.w - M - doc.width(c.phone, 9.5), y - 1, doc.width(c.phone, 9.5), 13, tel(c.phone));
+          doc.text(A4.w - M, y, c.phone, { size: 11.5, bold: true, color: tel(c.phone) ? LINK : INK, align: 'right' });
+          if (tel(c.phone)) doc.link(A4.w - M - doc.width(c.phone, 11.5, true), y - 1, doc.width(c.phone, 11.5, true), 15, tel(c.phone));
         }
-        y += 15;
-        doc.line(M, y - 3, A4.w - M, y - 3, { color: SOFT });
+        y += 19;
+        doc.line(M, y - 4, A4.w - M, y - 3, { color: SOFT });
       });
       y += 4;
     }
@@ -217,8 +217,8 @@ export function buildGuestPdf({ band, recipientType, recipientName, events, sect
       const c = v.contact || {};
       if (c.name || c.phone) {
         ry += label(rx, ry, 'Contact on site');
-        ry += block(rx, ry, rw, [c.name, c.role].filter(Boolean).join(' · '), { size: 10 });
-        if (c.phone) ry += block(rx, ry, rw, c.phone, { size: 10.5, bold: true, link: tel(c.phone) });
+        ry += block(rx, ry, rw, [c.name, c.role].filter(Boolean).join(' · '), { size: 11.5, bold: true });
+        if (c.phone) ry += block(rx, ry, rw, c.phone, { size: 13, bold: true, link: tel(c.phone) });
         ry += 6;
       }
       if (sections.has('tech') && v.tech) { ry += label(rx, ry, 'Tech'); ry += block(rx, ry, rw, v.tech, { size: 10 }) + 6; }
