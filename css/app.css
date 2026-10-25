@@ -293,6 +293,18 @@ a.avatar { color: var(--text); }
 .cal-ev.sugg { background: transparent; border: 1px dashed var(--c); border-left: 3px solid var(--c); }
 .check .badge { flex: none; }
 
+
+/* ---------- Docs, contacts, guest PDF (step 3) ---------- */
+.doc-ico { width: 40px; height: 40px; flex: none; border-radius: 10px; background: var(--surface-2); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.doc-link { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.pdf-card { display: flex; align-items: center; gap: 14px; }
+.pdf-ico { width: 48px; height: 48px; flex: none; border-radius: 12px; background: #2A2312; color: var(--amber); display: inline-flex; align-items: center; justify-content: center; }
+.pdf-ready { border-color: #2B5240; background: #15281F; }
+.check.disabled { opacity: 0.55; }
+fieldset.choice > * + * { margin-top: 8px; }
+.tag-plain.danger-tag { background: var(--red-bg); color: var(--red-text); }
+.btn-row-inline { display: inline-flex; gap: 6px; }
+
 /* ---------- Laptop / desktop layout ---------- */
 .shell, .content { display: contents; }
 .sidebar, .desk-only, .desk-spacer, .btn-new, .cal-evs { display: none; }

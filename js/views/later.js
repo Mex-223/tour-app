@@ -7,11 +7,6 @@ const PLANS = {
     title: 'Money',
     step: 'Step 4',
     items: ['Balance per tour, planned vs. actual', 'Show deals and payment status (MGMT only)', 'Expenses with receipt photos', 'Who owes whom', 'Merch stock and show-night selling']
-  },
-  docs: {
-    title: 'Docs',
-    step: 'Step 3',
-    items: ['Riders, stage plot, input list', 'Contracts and insurance', 'Guest PDF export for support bands and crew']
   }
 };
 

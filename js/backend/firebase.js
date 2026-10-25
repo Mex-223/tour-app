@@ -69,6 +69,16 @@ export const backend = {
   watchMembers(bandId, cb, onError) {
     return onSnapshot(collection(db, 'bands', bandId, 'members'), (q) => cb(q.docs.map((d) => ({ uid: d.id, ...d.data() }))), onError);
   },
+  // ---------- Team contacts & documents (step 3) ----------
+  watchList(bandId, name, cb, onError) {
+    return onSnapshot(collection(db, 'bands', bandId, name), (q) => cb(q.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+  },
+  async saveItem(bandId, name, id, data) {
+    const ref = id ? doc(db, 'bands', bandId, name, id) : doc(collection(db, 'bands', bandId, name));
+    w(setDoc(ref, { ...data, updatedAt: serverTimestamp() }));
+    return ref.id;
+  },
+  async deleteItem(bandId, name, id) { w(deleteDoc(doc(db, 'bands', bandId, name, id))); },
   watchAway(bandId, cb, onError) {
     return onSnapshot(collection(db, 'bands', bandId, 'away'), (q) => cb(q.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
   },

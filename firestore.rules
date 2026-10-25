@@ -69,7 +69,7 @@ service cloud.firestore {
         // MGMT can change roles of everyone except the Owner;
         // everyone can update their own name/instrument (not their role).
         allow update: if (isMgmt(bandId) && uid != ownerOf(bandId))
-          || (signedIn() && request.auth.uid == uid && onlyChanges(['name', 'instrument']));
+          || (signedIn() && request.auth.uid == uid && onlyChanges(['name', 'instrument', 'phone', 'sharePhone']));
 
         // MGMT can remove people (not the Owner); everyone except the Owner can leave.
         // (When the Owner deletes the whole band, its member list goes with it.)
@@ -91,6 +91,20 @@ service cloud.firestore {
           || (isMember(bandId)
             && resource.data.suggested == true
             && resource.data.suggestedBy == request.auth.uid);
+      }
+
+      // Team contacts and document links: the band can see them, MGMT edit them.
+      match /contacts/{contactId} {
+        allow read: if isMember(bandId);
+        allow write: if isMgmt(bandId);
+      }
+      match /docs/{docId} {
+        allow read: if isMember(bandId);
+        allow write: if isMgmt(bandId);
+      }
+      // Contracts, fees etc.: MGMT only.
+      match /privateDocs/{docId} {
+        allow read, write: if isMgmt(bandId);
       }
 
       // "Not available" dates: every member manages their own; the band can see them.

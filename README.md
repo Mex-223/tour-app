@@ -19,10 +19,12 @@ It's a web app you install from the browser ("Add to Home Screen"). It works on 
 - Works offline: changes sync when you're back online
 - Optional updates: "New version ready · Update / Later"
 
-**Next steps**
-3. Team contacts + Docs + guest PDF export
-4. Money + merch
-5. Laptop layout
+**Also done:** laptop layout (1.3), Owner role (1.4), "not available" dates + event suggestions (1.5).
+
+**Step 3 (done, 1.6):** team contacts (People tab), Docs (links to riders, stage plots; MGMT-only docs),
+guest PDF for support bands / crew / promoters, generated on the phone (`js/pdf/`), shareable via WhatsApp.
+
+**Next:** step 4, Money + merch (see design mockups).
 
 ## Setup (one time, already done)
 

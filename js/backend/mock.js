@@ -150,6 +150,27 @@ export const backend = {
     }, cb, onError);
   },
 
+  watchList(b, name, cb, onError) {
+    return addWatcher(() => {
+      if (!isMember(b)) deny();
+      if (name === 'privateDocs' && !isMgmt(b)) deny();
+      return Object.entries(((db.lists || {})[b] || {})[name] || {}).map(([id, x]) => ({ id, ...clone(x) }));
+    }, cb, onError);
+  },
+  async saveItem(b, name, id, data) {
+    if (!isMgmt(b)) deny();
+    db.lists = db.lists || {};
+    const L = ((db.lists[b] = db.lists[b] || {})[name] = db.lists[b][name] || {});
+    const key = id || 'x-' + randomCode(8);
+    L[key] = clone(data);
+    changed();
+    return key;
+  },
+  async deleteItem(b, name, id) {
+    if (!isMgmt(b)) deny();
+    delete db.lists[b][name][id];
+    changed();
+  },
   watchAway(b, cb, onError) {
     return addWatcher(() => {
       if (!isMember(b)) deny();

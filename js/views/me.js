@@ -37,6 +37,8 @@ export function renderMe() {
         <h2 class="h2">Me</h2>
         <label class="lbl">Name<input type="text" name="name" required maxlength="40" value="${esc(me.name)}"></label>
         <label class="lbl">Instrument / role${instrumentOptions(me.instrument)}</label>
+        <label class="lbl">Phone (your bandmates can see it)<input type="tel" name="phone" maxlength="30" value="${esc(me.phone || '')}" placeholder="+43 …"></label>
+        <label class="check"><input type="checkbox" name="sharePhone" ${me.sharePhone ? 'checked' : ''}><span>My number may appear in guest PDFs (support bands, crew)</span></label>
         <button class="btn-primary" type="submit" ${state.busy ? 'disabled' : ''}>Save</button>
       </form>
 

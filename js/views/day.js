@@ -117,7 +117,7 @@ export function renderDay(id) {
   else html += addRow('Notes', e, canEdit);
 
   const right = canEdit
-    ? `<a class="btn-small" href="#/edit/${esc(e.id)}">Edit</a>`
+    ? `<span class="btn-row-inline">${e.type !== 'rehearsal' && !e.suggested ? `<a class="btn-small" href="#/export/${esc(e.id)}">Guest PDF</a>` : ''}<a class="btn-small" href="#/edit/${esc(e.id)}">Edit</a></span>`
     : '<span class="muted small">View only</span>';
 
   return `<header class="head day-head">

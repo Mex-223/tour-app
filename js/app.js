@@ -1,8 +1,10 @@
 // Entry point: connects to the backend, picks the screen from the address
 // (#/today, #/schedule, …), draws it, and handles taps and forms.
 import {
-  state, savePrefs, startSync, bands, me, bandsLoading, bandById, isMgmt, myAway
+  state, savePrefs, startSync, bands, me, bandsLoading, bandById, isMgmt, myAway, docsOf
 } from './store.js';
+const docsOfBand = docsOf;
+
 import { bottomNav, sheet, sidebar } from './components.js';
 import { renderToday } from './views/today.js';
 import { renderSchedule, shiftMonth, gotoDate } from './views/schedule.js';
@@ -13,6 +15,9 @@ import { renderSplash, renderBackendError, renderLogin, renderSetup, renderJoin,
 import { renderMe } from './views/me.js';
 import { renderBand, inviteUrl } from './views/band.js';
 import { renderEditor, collectDraft, toEventData } from './views/editor.js';
+import { renderContactForm } from './views/contacts.js';
+import { renderDocs, renderDocForm } from './views/docs.js';
+import { renderExport, exportEvents, exportContacts, resultHtml } from './views/export.js';
 import { friendlyError } from './backend/shared.js';
 import { initUpdates, currentVersion } from './updates.js';
 
@@ -58,7 +63,8 @@ function loadInvite() {
 // ---------- Routing & drawing ----------
 function currentRoute() {
   const parts = location.hash.replace(/^#\/?/, '').split('/');
-  return { name: parts[0] || 'today', arg: parts[1] ? decodeURIComponent(parts[1]) : undefined };
+  const dec = (x) => (x ? decodeURIComponent(x) : undefined);
+  return { name: parts[0] || 'today', arg: dec(parts[1]), arg2: dec(parts[2]), arg3: dec(parts[3]) };
 }
 
 function screenFor(route) {
@@ -71,19 +77,24 @@ function screenFor(route) {
   if (state.pendingInvite) { loadInvite(); return { html: renderJoin(state.invite) }; }
   if (!bands.length && route.name !== 'me') return { html: renderWelcome() };
 
-  const { name, arg } = route;
+  const { name, arg, arg2, arg3 } = route;
   let html;
   if (name === 'schedule') html = renderSchedule();
   else if (name === 'day') html = renderDay(arg);
   else if (name === 'people') html = renderPeople();
-  else if (name === 'money' || name === 'docs') html = renderLater(name);
+  else if (name === 'money') html = renderLater(name);
+  else if (name === 'docs') html = renderDocs();
+  else if (name === 'doc') html = renderDocForm(arg, arg2, arg3 === 'p');
+  else if (name === 'contact') html = renderContactForm(arg, arg2);
+  else if (name === 'export') html = renderExport(arg);
   else if (name === 'me') html = renderMe();
   else if (name === 'band') html = renderBand(arg);
   else if (name === 'new') html = renderEditor('new', arg);
   else if (name === 'edit') html = renderEditor('edit', arg);
   else html = renderToday();
-  const tab = ['day'].includes(name) ? 'schedule' : (['me', 'band'].includes(name) ? null : (TABS.includes(name) ? name : 'today'));
-  return { html, nav: !['new', 'edit'].includes(name), tab, shell: true, side: ['me', 'band'].includes(name) ? 'me' : tab };
+  const parent = { day: 'schedule', contact: 'people', doc: 'docs', export: 'docs' };
+  const tab = parent[name] || (['me', 'band'].includes(name) ? null : (TABS.includes(name) ? name : 'today'));
+  return { html, nav: !['new', 'edit', 'contact', 'doc', 'export'].includes(name), tab, shell: true, side: ['me', 'band'].includes(name) ? 'me' : tab };
 }
 
 let lastHash = null;
@@ -251,6 +262,22 @@ const actions = {
     run(async () => { await backend.deleteEvent(el.dataset.band, el.dataset.id); location.hash = '#/schedule'; toast(withdraw ? 'Suggestion withdrawn.' : 'Suggestion declined.'); });
     return 'none';
   },
+  'delete-contact': (el) => {
+    if (!confirm('Delete this contact?')) return 'none';
+    run(async () => { await backend.deleteItem(el.dataset.band, 'contacts', el.dataset.id); location.hash = '#/people'; toast('Contact deleted.'); });
+    return 'none';
+  },
+  'delete-doc': (el) => {
+    if (!confirm('Delete this document link? (The file itself stays where it is.)')) return 'none';
+    run(async () => { await backend.deleteItem(el.dataset.band, el.dataset.private ? 'privateDocs' : 'docs', el.dataset.id); location.hash = '#/docs'; toast('Deleted.'); });
+    return 'none';
+  },
+  'share-pdf': () => {
+    const f = state.lastPdf;
+    if (!f) return 'none';
+    if (navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f], title: f.name }).catch(() => {});
+    return 'none';
+  },
   'delete-band': (el) => {
     if (!confirm(`Delete ${el.dataset.name} with all its events? This can't be undone.`)) return 'none';
     run(async () => { await backend.deleteBand(me.id, el.dataset.band); location.hash = '#/me'; toast('Band deleted.'); });
@@ -294,7 +321,7 @@ const forms = {
     name: f.get('name').trim(), instrument: String(f.get('instrument') || '').trim(), email: state.user.email || ''
   })),
   profile: (f) => run(async () => {
-    const info = { name: f.get('name').trim(), instrument: String(f.get('instrument') || '').trim() };
+    const info = { name: f.get('name').trim(), instrument: String(f.get('instrument') || '').trim(), phone: String(f.get('phone') || '').trim(), sharePhone: !!f.get('sharePhone') };
     await backend.saveProfile(me.id, info);
     await backend.updateMyMemberInfo(me.id, bands.map((b) => b.id), info);
     state.authInfo = 'Saved.';
@@ -324,6 +351,67 @@ const forms = {
       await backend.addAway(me.id, bands.map((b) => b.id), { from, to, note: String(f.get('note') || '').trim(), name: me.name });
       state.authInfo = 'Saved. Your bands can see it now.';
     });
+  },
+  contact: (f, form) => {
+    const band = String(f.get('band') || form.dataset.band);
+    const data = {
+      name: String(f.get('name') || '').trim(), role: String(f.get('role') || 'Other'), phone: String(f.get('phone') || '').trim(),
+      email: String(f.get('email') || '').trim(), note: String(f.get('note') || '').trim(), share: !!f.get('share')
+    };
+    run(async () => { await backend.saveItem(band, 'contacts', form.dataset.id || null, data); location.hash = '#/people'; toast('Contact saved.'); });
+  },
+  doc: (f, form) => {
+    const band = String(f.get('band') || form.dataset.band);
+    let url = String(f.get('url') || '').trim();
+    if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+    const priv = !!f.get('private');
+    const wasPriv = form.dataset.private === '1';
+    const data = { title: String(f.get('title') || '').trim(), category: String(f.get('category') || 'Other'), url, note: String(f.get('note') || '').trim(), guest: !priv && !!f.get('guest') };
+    run(async () => {
+      const id = form.dataset.id || null;
+      if (id && priv !== wasPriv) {
+        await backend.deleteItem(band, wasPriv ? 'privateDocs' : 'docs', id);
+        await backend.saveItem(band, priv ? 'privateDocs' : 'docs', null, data);
+      } else {
+        await backend.saveItem(band, priv ? 'privateDocs' : 'docs', id, data);
+      }
+      location.hash = '#/docs';
+      toast('Saved.');
+    });
+  },
+  export: async (f) => {
+    const band = bandById(String(f.get('band')));
+    const days = f.getAll('days').map(String);
+    if (!days.length) { state.authError = 'Pick at least one day.'; render(); return; }
+    const evs = exportEvents(band.id).filter((e) => days.includes(e.id));
+    const allContacts = exportContacts(band.id).filter((c) => c.ok);
+    const chosen = f.getAll('contacts').map(String);
+    const contacts = allContacts.filter((c) => chosen.includes(c.key));
+    const primary = contacts.find((c) => c.key === String(f.get('primary'))) || contacts[0] || null;
+    const ordered = primary ? [primary, ...contacts.filter((c) => c !== primary)] : contacts;
+    const docIds = f.getAll('docs').map(String);
+    const docs = docsOfBand(band.id).filter((d) => docIds.includes(d.id));
+    const type = String(f.get('type') || 'Support band');
+    const who = String(f.get('name') || '').trim();
+    const { buildGuestPdf } = await import('./pdf/guest.js');
+    const created = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const pdf = buildGuestPdf({ band, recipientType: type, recipientName: who, events: evs, sections: new Set(f.getAll('sections').map(String)),
+      contacts: ordered, primary, venueContacts: !!f.get('venueContacts'), docs, createdAt: created });
+    const slug = (s) => String(s).replace(/ß/g, 'ss').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
+    const fileName = `${slug(band.name)}-tour-info${who ? '-' + slug(who) : ''}.pdf`;
+    const blob = pdf.toBlob();
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+    state.lastPdf = file;
+    if (state.lastPdfUrl) URL.revokeObjectURL(state.lastPdfUrl);
+    state.lastPdfUrl = URL.createObjectURL(blob);
+    const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    state.exportResult = { fileName, days: evs.length, canShare, url: state.lastPdfUrl };
+    state.formDirty = true; // keep the choices on screen
+    const box = document.getElementById('export-result');
+    if (box) {
+      box.innerHTML = resultHtml();
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   },
   'create-band': (f) => run(async () => {
     const id = await backend.createBand(me.id, { name: f.get('name').trim(), color: f.get('color') }, me);
@@ -359,10 +447,17 @@ document.addEventListener('submit', (ev) => {
 });
 
 document.addEventListener('input', (ev) => {
-  if (ev.target.closest('form[data-form="event"], form[data-form="profile"], form[data-form="band-settings"], form[data-form="create-band"]')) state.formDirty = true;
+  if (ev.target.closest('form[data-form="event"], form[data-form="profile"], form[data-form="band-settings"], form[data-form="create-band"], form[data-form="contact"], form[data-form="doc"], form[data-form="export"], form[data-form="away-add"]')) state.formDirty = true;
 });
 
 document.addEventListener('change', (ev) => {
+  // Guest PDF: switching the band shows that band's days and contacts
+  if (ev.target.name === 'band' && ev.target.closest('form[data-form="export"]')) {
+    if (state.exp) state.exp.band = ev.target.value;
+    state.formDirty = false;
+    render();
+    return;
+  }
   // Editor: switching the band updates the list of people; a new date updates "not available" marks
   if ((ev.target.name === 'band' || ev.target.name === 'date') && ev.target.closest('form[data-form="event"]')) {
     const d = collectDraft(ev.target.form);
@@ -393,6 +488,7 @@ window.addEventListener('hashchange', () => {
   state.authError = null;
   state.authInfo = null;
   if (!['new', 'edit'].includes(route.name)) state.draft = null;
+  if (route.name !== 'export') { state.exp = null; state.exportResult = null; }
   document.getElementById('toast').classList.remove('show');
   render();
 });

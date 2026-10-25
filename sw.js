@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.5.0';
-const NOTES = 'New: "not available" dates in your profile, and members can suggest events.';
+const VERSION = '1.6.0';
+const NOTES = 'Step 3: team contacts, Docs (links to riders etc.) and the guest PDF for support bands and crew.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
@@ -36,6 +36,12 @@ const SHELL = [
   './js/views/me.js',
   './js/views/band.js',
   './js/views/editor.js',
+  './js/views/contacts.js',
+  './js/views/docs.js',
+  './js/views/export.js',
+  './js/pdf/writer.js',
+  './js/pdf/metrics.js',
+  './js/pdf/guest.js',
   './icons/icon.svg',
   './icons/icon-180.png',
   './icons/icon-192.png',

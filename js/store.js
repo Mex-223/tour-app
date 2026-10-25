@@ -30,6 +30,9 @@ export const state = {
   memberLists: {},
   eventLists: {},
   awayLists: {},
+  contactLists: {},
+  docLists: {},
+  privateDocLists: {},
   pendingInvite: null
 };
 
@@ -68,7 +71,7 @@ export function recompute() {
     const mine = (state.memberLists[b.id] || []).find((m) => m.uid === uid);
     if (mine) roles[b.id] = mine.role;
   });
-  me = { id: uid, name: p.name || '', instrument: p.instrument || '', email: state.user ? state.user.email : '', bands: roles };
+  me = { id: uid, name: p.name || '', instrument: p.instrument || '', phone: p.phone || '', sharePhone: !!p.sharePhone, email: state.user ? state.user.email : '', bands: roles };
   events = bands.flatMap((b) => (state.eventLists[b.id] || []).map((e) => normalizeEvent(e, b.id)));
   if (state.view !== 'me' && state.view !== 'all' && !bands.some((b) => b.id === state.view)) state.view = 'me';
 }
@@ -82,6 +85,16 @@ function normalizeEvent(e, bandId) {
     missing: Array.isArray(e.missing) ? e.missing : []
   };
 }
+
+// ---------- Team contacts & documents ----------
+export const CONTACT_ROLES = ['Tour manager', 'MGMT', 'Booking', 'FOH / Tech', 'Monitor tech', 'Light', 'Driver', 'Merch', 'Crew', 'Label', 'Promoter', 'Emergency', 'Other'];
+export const DOC_CATEGORIES = ['Rider', 'Stage plot', 'Input list', 'Setlist', 'Contract', 'Insurance', 'Press kit', 'Other'];
+export const contactsOf = (bandId) => (state.contactLists[bandId] || []).map((c) => ({ ...c, band: bandId }))
+  .sort((a, b) => CONTACT_ROLES.indexOf(a.role) - CONTACT_ROLES.indexOf(b.role) || (a.name || '').localeCompare(b.name || ''));
+export const docsOf = (bandId) => [
+  ...(state.docLists[bandId] || []).map((d) => ({ ...d, band: bandId, private: false })),
+  ...(state.privateDocLists[bandId] || []).map((d) => ({ ...d, band: bandId, private: true }))
+].sort((a, b) => DOC_CATEGORIES.indexOf(a.category) - DOC_CATEGORIES.indexOf(b.category) || (a.title || '').localeCompare(b.title || ''));
 
 // ---------- "Not available" dates ----------
 // One entry per period (the same period is stored once per band, with the same id).
@@ -196,6 +209,9 @@ function stopBand(id) {
   delete state.memberLists[id];
   delete state.eventLists[id];
   delete state.awayLists[id];
+  delete state.contactLists[id];
+  delete state.docLists[id];
+  delete state.privateDocLists[id];
 }
 
 function stopAll() {
@@ -238,7 +254,11 @@ function syncBands(ids) {
       }, onErr),
       backendRef.watchMembers(id, (list) => { state.memberLists[id] = list; changed(); }, onErr),
       backendRef.watchEvents(id, (list) => { state.eventLists[id] = list; changed(); }, onErr),
-      backendRef.watchAway(id, (list) => { state.awayLists[id] = list; changed(); }, () => {})
+      backendRef.watchAway(id, (list) => { state.awayLists[id] = list; changed(); }, () => {}),
+      backendRef.watchList(id, 'contacts', (list) => { state.contactLists[id] = list; changed(); }, () => {}),
+      backendRef.watchList(id, 'docs', (list) => { state.docLists[id] = list; changed(); }, () => {}),
+      // Only MGMT may read these; for members this simply stays empty.
+      backendRef.watchList(id, 'privateDocs', (list) => { state.privateDocLists[id] = list; changed(); }, () => {})
     ];
   });
 }
