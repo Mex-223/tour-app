@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.7.3';
-const NOTES = 'Merch: undo any sale, switch a sale between card and cash, and delete a whole night (items go back into stock).';
+const VERSION = '1.8.0';
+const NOTES = 'Merch: export stock and sales as CSV for Excel, and import stock from a CSV.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
@@ -36,6 +36,7 @@ const SHELL = [
   './js/merch.js',
   './js/merch-actions.js',
   './js/photo.js',
+  './js/csv.js',
   './js/views/auth.js',
   './js/views/me.js',
   './js/views/band.js',

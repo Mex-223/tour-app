@@ -479,3 +479,4 @@ a.prod-card:hover { border-color: #3A3F46; }
   .sell-side { display: contents; }
   .sell-layout .cart { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.55); }
 }
+.file-btn { position: relative; cursor: pointer; }

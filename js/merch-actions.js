@@ -6,7 +6,9 @@ import {
 import { cartFor, currentNight, newColourId, diffText, nightText, profitText } from './views/merch.js';
 import { nightSales, summary, nightDoc } from './merch.js';
 import { shrinkPhoto } from './photo.js';
-import { eur } from './merch.js';
+import { eur, count, KINDS, KIND_NAME, nightTitle, nightKeyOf, LOC_NAME } from './merch.js';
+import { saveCsv, parseCsv, fileDate, slug } from './csv.js';
+import { isMgmt } from './store.js';
 
 export function installMerch({ getBackend, render, toast, run, actions, forms }) {
   const backend = () => getBackend();
@@ -214,6 +216,149 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       toast(mode === 'close' ? 'Night closed.' : mode === 'reopen' ? 'Night reopened.' : 'Count saved.');
     });
   }
+
+  // ---------- CSV export / import ----------
+  const STOCK_HEAD = ['Product', 'Colour', 'Size', 'Van box', 'Storage', 'Total', 'Price', 'Kind'];
+  function stockRows(bandId) {
+    const mgmt = isMgmt(bandId);
+    const head = [...STOCK_HEAD, ...(mgmt ? ['Cost'] : []), 'ID'];
+    const rows = [head];
+    products(bandId).forEach((p) => p.colours.forEach((c) => p.sizes.forEach((z) => {
+      const van = count(p, c.id, 'van', z);
+      const st = count(p, c.id, 'storage', z);
+      rows.push([p.name, c.name || '', z, van, st, van + st, p.price, KIND_NAME[p.kind] || 'Other', ...(mgmt ? [p.cost != null ? p.cost : ''] : []), p.id]);
+    })));
+    return rows;
+  }
+  function salesRows(bandId, list) {
+    const rows = [['Date', 'Time', 'Show', 'Product', 'Colour', 'Size', 'Price', 'Payment', 'Taken from', 'Sold by', 'Sale no.']];
+    list.forEach((x, n) => {
+      const t = nightTitle(bandId, nightKeyOf(x));
+      const date = String(x.at || x.date || '').slice(0, 10);
+      const time = String(x.at || '').slice(11, 16);
+      const base = (name, colour, size, price) => [date, time, t.place, name, colour, size, price, x.pay === 'cash' ? 'Cash' : 'Card', LOC_NAME[x.loc] || 'Van box', x.byName || '', n + 1];
+      x.items.forEach((i) => rows.push(base(i.name, i.colour || '', i.size && i.size !== 'One size' ? i.size : '', Number(i.price) || 0)));
+      if (x.discount) rows.push(base('Bundle discount', '', '', -x.discount));
+    });
+    return rows;
+  }
+  const bandSlug = (bandId) => slug(bandById(bandId).name);
+
+  Object.assign(actions, {
+    'export-stock': () => {
+      const bandId = merchBand();
+      saveCsv(`${bandSlug(bandId)}-merch-stock-${fileDate()}.csv`, stockRows(bandId));
+      return 'none';
+    },
+    'export-sales': () => {
+      const bandId = merchBand();
+      saveCsv(`${bandSlug(bandId)}-merch-sales-${fileDate()}.csv`, salesRows(bandId, salesOf(bandId)));
+      return 'none';
+    },
+    'export-night': (el) => {
+      const bandId = merchBand();
+      const key = el.dataset.key;
+      const t = nightTitle(bandId, key);
+      saveCsv(`${bandSlug(bandId)}-merch-${t.date || fileDate()}-${slug(t.place)}.csv`, salesRows(bandId, nightSales(bandId, key)));
+      return 'none';
+    }
+  });
+
+  // Read a stock file (the export, edited in Excel) and work out what would change.
+  function planImport(bandId, text) {
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('That file looks empty.');
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9äöüß]/g, '');
+    const head = rows[0].map(norm);
+    const col = (...names) => head.findIndex((h) => names.map(norm).includes(h));
+    const C = {
+      name: col('Product', 'Produkt', 'Name', 'Artikel'), colour: col('Colour', 'Color', 'Farbe'), size: col('Size', 'Größe', 'Groesse'),
+      van: col('Van box', 'Van', 'Merch box', 'Tour'), storage: col('Storage', 'Lager'), price: col('Price', 'Preis'),
+      kind: col('Kind', 'Art', 'Type'), cost: col('Cost', 'Kosten', 'Einkauf'), id: col('ID')
+    };
+    if (C.name < 0) throw new Error('No "Product" column found. Start from an exported stock file so the columns match.');
+    if (C.van < 0 && C.storage < 0 && C.price < 0) throw new Error('No "Van box", "Storage" or "Price" column found.');
+    const get = (r, i) => (i >= 0 ? String(r[i] || '').trim() : '');
+    const kindOf = (s) => { const k = KINDS.find(([key, l]) => norm(key) === norm(s) || norm(l) === norm(s)); return k ? k[0] : null; };
+    const existing = products(bandId);
+    const plans = {};
+    let counts = 0;
+    rows.slice(1).forEach((r) => {
+      const name = get(r, C.name);
+      if (!name) return;
+      const id = get(r, C.id);
+      const p = (id && existing.find((x) => x.id === id)) || existing.find((x) => norm(x.name) === norm(name));
+      const key = p ? p.id : 'new:' + norm(name);
+      const plan = plans[key] || (plans[key] = p
+        ? { isNew: false, id: p.id, name: p.name, kind: p.kind, price: p.price, sizes: p.sizes.slice(), colours: p.colours.map((c) => ({ ...c })), stock: JSON.parse(JSON.stringify(p.stock || {})), lowAt: p.lowAt, order: p.order || 0, cost: undefined, changed: false }
+        : { isNew: true, id: null, name: name.slice(0, 40), kind: null, price: 0, sizes: [], colours: [], stock: {}, lowAt: 2, order: Date.now() + Object.keys(plans).length, cost: undefined, changed: true });
+      if (!plan.isNew && plan.name !== name.slice(0, 40)) { plan.name = name.slice(0, 40); plan.changed = true; }
+      const kind = kindOf(get(r, C.kind));
+      if (kind && kind !== plan.kind) { plan.kind = kind; plan.changed = true; }
+      const priceTxt = get(r, C.price);
+      if (priceTxt !== '' && parseEur(priceTxt) !== plan.price) { plan.price = parseEur(priceTxt); plan.changed = true; }
+      const costTxt = get(r, C.cost);
+      if (costTxt !== '' && isMgmt(bandId)) plan.cost = parseEur(costTxt);
+      const size = (get(r, C.size) || 'One size').slice(0, 12);
+      if (!plan.sizes.includes(size)) { plan.sizes.push(size); plan.changed = true; }
+      const cname = get(r, C.colour).slice(0, 24);
+      let c = plan.colours.find((x) => norm(x.name) === norm(cname)) || (!cname && plan.colours.length === 1 ? plan.colours[0] : null);
+      if (!c) {
+        const known = COLOURS.find(([n]) => norm(n) === norm(cname));
+        c = { id: newColourId(), name: cname, hex: known ? known[1] : '#7D8189' };
+        plan.colours.push(c);
+        plan.changed = true;
+      }
+      [['van', C.van], ['storage', C.storage]].forEach(([loc, i]) => {
+        const v = get(r, i);
+        if (v === '') return;
+        const n = Math.max(0, Math.round(parseEur(v)));
+        const at = (((plan.stock[c.id] = plan.stock[c.id] || {})[loc] = plan.stock[c.id][loc] || {}));
+        if (at[size] !== n) { at[size] = n; plan.changed = true; counts += 1; }
+      });
+    });
+    const list = Object.values(plans).map((pl) => ({ ...pl, kind: pl.kind || 'other' }));
+    return { list, counts, added: list.filter((x) => x.isNew).length, updated: list.filter((x) => !x.isNew && x.changed).length };
+  }
+
+  async function applyImport(bandId, plan) {
+    const b = backend();
+    for (const pl of plan.list) {
+      if (!pl.changed && pl.cost === undefined) continue;
+      const stock = {};
+      pl.colours.forEach((c) => {
+        stock[c.id] = {};
+        ['van', 'storage'].forEach((l) => {
+          stock[c.id][l] = {};
+          pl.sizes.forEach((z) => { stock[c.id][l][z] = Math.max(0, Number(((pl.stock[c.id] || {})[l] || {})[z]) || 0); });
+        });
+      });
+      const data = { name: pl.name, kind: pl.kind, price: pl.price, sizes: pl.sizes.slice(0, 12), colours: pl.colours.map(({ id, name, hex }) => ({ id, name, hex })), stock, lowAt: pl.lowAt, order: pl.order };
+      const pid = pl.changed || pl.isNew ? await b.saveMerch(bandId, 'products', pl.id, data) : pl.id;
+      if (pl.cost !== undefined) await b.saveMerch(bandId, 'costs', pid, { cost: pl.cost });
+    }
+  }
+
+  document.addEventListener('change', async (ev) => {
+    const t = ev.target;
+    if (!(t.matches && t.matches('input[type=file][data-import=stock]'))) return;
+    const file = t.files && t.files[0];
+    t.value = '';
+    if (!file) return;
+    const bandId = merchBand();
+    try {
+      const plan = planImport(bandId, await file.text());
+      if (!plan.added && !plan.updated) { toast('Nothing to change: the file matches what\'s in the app.'); return; }
+      const parts = [];
+      if (plan.added) parts.push(`${plan.added} new ${plan.added === 1 ? 'product' : 'products'} (${plan.list.filter((x) => x.isNew).map((x) => x.name).join(', ')})`);
+      if (plan.updated) parts.push(`${plan.updated} ${plan.updated === 1 ? 'product' : 'products'} updated`);
+      if (plan.counts) parts.push(`${plan.counts} stock ${plan.counts === 1 ? 'number' : 'numbers'} changed`);
+      if (!confirm(`Import into ${bandById(bandId).name}?\n\n${parts.join('\n')}\n\nProducts that aren't in the file stay as they are.`)) return;
+      run(async () => { await applyImport(bandId, plan); toast('Import done.'); });
+    } catch (err) {
+      toast(err.message || 'Could not read that file.');
+    }
+  });
 
   // ---------- Forms ----------
   Object.assign(forms, {

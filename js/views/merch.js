@@ -93,6 +93,12 @@ export function renderStock() {
     <h2 class="section-h">Bundles</h2>
     ${bundleRows || `<div class="empty">${mgmt ? 'e.g. shirt + vinyl for €50. Applied automatically when both are in the cart.' : 'No bundle deals yet.'}</div>`}
     ${mgmt && products(bandId).length > 1 ? `<a class="btn-outline" href="#/merch/bundle/new">${icons.plus()} Add bundle</a>` : ''}
+    <h2 class="section-h">Excel / CSV</h2>
+    <div class="btn-row">
+      <button type="button" class="btn-outline" data-action="export-stock">Export stock</button>
+      ${mgmt ? `<label class="btn-outline file-btn">Import stock<input type="file" accept=".csv,text/csv,text/plain" data-import="stock" class="sr"></label>` : ''}
+    </div>
+    <p class="muted small">${mgmt ? 'Tip: export first, change the numbers or add rows in Excel, save as CSV, then import. Products not in the file stay untouched.' : 'Opens in Excel, Numbers or Google Sheets.'}</p>
   </main>`;
 }
 
@@ -197,6 +203,7 @@ export function renderNights() {
     </a>`).join('');
   return head('merch/nights', bandId, 'Merch') + `<main id="main" class="merch-main">
     ${rows || '<div class="empty">After the first sale, each show night shows up here with its report and cash count.</div>'}
+    ${rows ? '<button type="button" class="btn-outline" data-action="export-sales">Export all sales (CSV for Excel)</button>' : ''}
   </main>`;
 }
 
@@ -256,7 +263,7 @@ export function renderNight(key) {
       ${mgmt ? `<button type="button" class="btn-small" data-action="sale-pay" data-id="${esc(x.id)}" aria-label="Change to ${x.pay === 'cash' ? 'card' : 'cash'}">→ ${x.pay === 'cash' ? 'Card' : 'Cash'}</button>` : ''}
       ${x.by === me.id || mgmt ? `<button type="button" class="btn-small" data-action="undo-sale" data-id="${esc(x.id)}">Undo</button>` : ''}
     </div>`).join('')}` : '<div class="empty">No sales for this night yet.</div>'}
-    ${s.count ? '<button type="button" class="btn-outline" data-action="share-night">Share report</button>' : ''}
+    ${s.count ? `<div class="btn-row"><button type="button" class="btn-outline" data-action="share-night">Share report</button><button type="button" class="btn-outline" data-action="export-night" data-key="${esc(key)}">Export (CSV)</button></div>` : ''}
     ${mgmt ? `<button type="button" class="btn-outline danger" data-action="delete-night" data-key="${esc(key)}">${icons.close(16)} Delete this night${s.count ? ` (${s.count} ${s.count === 1 ? 'sale' : 'sales'})` : ''}</button>
       <p class="muted small">For test sales or mistakes: removes the sales and the cash count, and puts the items back into stock.</p>` : ''}
   </main>`;
