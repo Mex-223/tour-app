@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.8.1';
-const NOTES = 'Merch: CSV exports are now full reports with totals, summary, per show, per product, per size and per seller. Stock export shows the stock value.';
+const VERSION = '1.8.2';
+const NOTES = 'Merch: simpler CSV exports, sales list with a total row and card / cash underneath.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
