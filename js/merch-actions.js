@@ -221,25 +221,107 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
   const STOCK_HEAD = ['Product', 'Colour', 'Size', 'Van box', 'Storage', 'Total', 'Price', 'Kind'];
   function stockRows(bandId) {
     const mgmt = isMgmt(bandId);
-    const head = [...STOCK_HEAD, ...(mgmt ? ['Cost'] : []), 'ID'];
+    const head = [...STOCK_HEAD, 'Value (price)', ...(mgmt ? ['Cost', 'Value (cost)'] : []), 'ID'];
     const rows = [head];
+    const sum = { van: 0, st: 0, value: 0, cost: 0, costKnown: true };
     products(bandId).forEach((p) => p.colours.forEach((c) => p.sizes.forEach((z) => {
       const van = count(p, c.id, 'van', z);
       const st = count(p, c.id, 'storage', z);
-      rows.push([p.name, c.name || '', z, van, st, van + st, p.price, KIND_NAME[p.kind] || 'Other', ...(mgmt ? [p.cost != null ? p.cost : ''] : []), p.id]);
+      sum.van += van; sum.st += st; sum.value += (van + st) * p.price;
+      if (p.cost != null) sum.cost += (van + st) * p.cost; else if (van + st) sum.costKnown = false;
+      rows.push([p.name, c.name || '', z, van, st, van + st, p.price, KIND_NAME[p.kind] || 'Other', (van + st) * p.price,
+        ...(mgmt ? [p.cost != null ? p.cost : '', p.cost != null ? (van + st) * p.cost : ''] : []), p.id]);
     })));
+    rows.push(['TOTAL', '', '', sum.van, sum.st, sum.van + sum.st, '', '', sum.value, ...(mgmt ? ['', sum.costKnown ? sum.cost : ''] : []), '']);
     return rows;
   }
-  function salesRows(bandId, list) {
-    const rows = [['Date', 'Time', 'Show', 'Product', 'Colour', 'Size', 'Price', 'Payment', 'Taken from', 'Sold by', 'Sale no.']];
+
+  // A full sales report: header, every item + TOTAL, then summaries (made to read in Excel).
+  function salesRows(bandId, list, label) {
+    const mgmt = isMgmt(bandId);
+    const prods = Object.fromEntries(products(bandId).map((p) => [p.id, p]));
+    const costOf = (pid) => (prods[pid] && prods[pid].cost != null ? prods[pid].cost : null);
+    const dates = list.map((x) => String(x.at || x.date || '').slice(0, 10)).filter(Boolean).sort();
+    const de = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
+    const r2 = (n) => Math.round(n * 100) / 100;
+    const rows = [
+      [`${bandById(bandId).name} · Merch sales report`],
+      ['Covers', label + (dates.length ? ` (${de(dates[0])}${dates[0] !== dates[dates.length - 1] ? ' – ' + de(dates[dates.length - 1]) : ''})` : '')],
+      ['Exported', `${de(fileDate())} by ${me.name || ''}`],
+      [],
+      ['SALES'],
+      ['Date', 'Time', 'Show', 'Product', 'Colour', 'Size', 'Price', 'Payment', 'Taken from', 'Sold by', 'Sale no.', ...(mgmt ? ['Cost', 'Profit'] : [])]
+    ];
+    const T = { total: 0, card: 0, cash: 0, discount: 0, items: 0, cost: 0, costKnown: true };
+    const byNight = {}; const byProduct = {}; const bySize = {}; const bySeller = {};
     list.forEach((x, n) => {
-      const t = nightTitle(bandId, nightKeyOf(x));
+      const key = nightKeyOf(x);
+      const t = nightTitle(bandId, key);
       const date = String(x.at || x.date || '').slice(0, 10);
       const time = String(x.at || '').slice(11, 16);
-      const base = (name, colour, size, price) => [date, time, t.place, name, colour, size, price, x.pay === 'cash' ? 'Cash' : 'Card', LOC_NAME[x.loc] || 'Van box', x.byName || '', n + 1];
-      x.items.forEach((i) => rows.push(base(i.name, i.colour || '', i.size && i.size !== 'One size' ? i.size : '', Number(i.price) || 0)));
-      if (x.discount) rows.push(base('Bundle discount', '', '', -x.discount));
+      const pay = x.pay === 'cash' ? 'Cash' : 'Card';
+      const base = [de(date), time, t.place];
+      const tail = [pay, LOC_NAME[x.loc] || 'Van box', x.byName || '', n + 1];
+      const N = (byNight[key] = byNight[key] || { date: t.date || date, place: t.place, sales: 0, items: 0, card: 0, cash: 0, total: 0, cost: 0 });
+      N.sales += 1; N.total += x.total; N[x.pay === 'cash' ? 'cash' : 'card'] += x.total;
+      T.total += x.total; T[x.pay === 'cash' ? 'cash' : 'card'] += x.total; T.discount += x.discount || 0;
+      const S = (bySeller[x.byName || '?'] = bySeller[x.byName || '?'] || { sales: 0, items: 0, total: 0 });
+      S.sales += 1; S.total += x.total;
+      x.items.forEach((i) => {
+        const price = Number(i.price) || 0;
+        const cost = costOf(i.pid);
+        if (cost == null) T.costKnown = false; else { T.cost += cost; N.cost += cost; }
+        T.items += 1; N.items += 1; S.items += 1;
+        const size = i.size && i.size !== 'One size' ? i.size : '';
+        rows.push([...base, i.name, i.colour || '', size, price, ...tail, ...(mgmt ? [cost != null ? cost : '', cost != null ? price - cost : ''] : [])]);
+        const pk = `${i.name}|${i.colour || ''}`;
+        const P = (byProduct[pk] = byProduct[pk] || { name: i.name, colour: i.colour || '', items: 0, total: 0, cost: 0, costKnown: true });
+        P.items += 1; P.total += price;
+        if (cost == null) P.costKnown = false; else P.cost += cost;
+        if (size && prods[i.pid] && prods[i.pid].sizes.length > 1) { const zk = `${i.name}|${size}`; bySize[zk] = bySize[zk] || { name: i.name, size, items: 0 }; bySize[zk].items += 1; }
+      });
+      if (x.discount) {
+        rows.push([...base, 'Bundle discount', '', '', -x.discount, ...tail, ...(mgmt ? ['', -x.discount] : [])]);
+        const pk = 'Bundle discount|';
+        const P = (byProduct[pk] = byProduct[pk] || { name: 'Bundle discount', colour: '', items: 0, total: 0, cost: 0, costKnown: true });
+        P.total -= x.discount;
+      }
     });
+    const profit = T.costKnown ? T.total - T.cost : null;
+    rows.push(['TOTAL', '', '', `${T.items} items`, '', '', r2(T.total), '', '', '', `${list.length} sales`, ...(mgmt ? [T.costKnown ? r2(T.cost) : '', profit != null ? r2(profit) : ''] : [])]);
+
+    rows.push([], ['SUMMARY']);
+    rows.push(['Total sold', r2(T.total)], ['Card', r2(T.card)], ['Cash', r2(T.cash)]);
+    if (T.discount) rows.push(['Bundle discounts given', r2(T.discount)]);
+    rows.push(['Items sold', T.items], ['Sales', list.length], ['Average per sale', list.length ? r2(T.total / list.length) : 0]);
+    if (Object.keys(byNight).length > 1) rows.push(['Shows / nights', Object.keys(byNight).length], ['Average per night', r2(T.total / Object.keys(byNight).length)]);
+    if (mgmt) {
+      if (T.costKnown) rows.push(['Cost of goods sold', r2(T.cost)], ['Profit', r2(profit)], ['Margin', T.total ? `${Math.round((profit / T.total) * 100)} %` : '']);
+      else rows.push(['Profit', 'Fill in "what it cost us" for every product to see the profit']);
+    }
+
+    rows.push([], ['PER SHOW'], ['Date', 'Show', 'Sales', 'Items', 'Card', 'Cash', 'Total', ...(mgmt ? ['Profit'] : []), 'Float', 'Cash expected', 'Cash counted', 'Difference', 'Closed']);
+    Object.entries(byNight).sort((a, b) => String(a[1].date).localeCompare(String(b[1].date))).forEach(([key, N]) => {
+      const doc = nightDoc(bandId, key);
+      const expected = (Number(doc.float) || 0) + N.cash;
+      const counted = doc.counted != null ? Number(doc.counted) : null;
+      rows.push([de(N.date), N.place, N.sales, N.items, r2(N.card), r2(N.cash), r2(N.total), ...(mgmt ? [T.costKnown ? r2(N.total - N.cost) : ''] : []),
+        doc.float != null ? Number(doc.float) : '', r2(expected), counted != null ? counted : '', counted != null ? r2(counted - expected) : '', doc.closed ? 'yes' : 'no']);
+    });
+
+    rows.push([], ['PER PRODUCT'], ['Product', 'Colour', 'Items', 'Total', ...(mgmt ? ['Profit'] : []), 'Share of sales']);
+    Object.values(byProduct).sort((a, b) => b.total - a.total).forEach((P) => {
+      rows.push([P.name, P.colour, P.items || '', r2(P.total), ...(mgmt ? [P.costKnown ? r2(P.total - P.cost) : ''] : []), T.total ? `${Math.round((P.total / T.total) * 100)} %` : '']);
+    });
+
+    const sizes = Object.values(bySize);
+    if (sizes.length) {
+      rows.push([], ['PER SIZE'], ['Product', 'Size', 'Items']);
+      sizes.sort((a, b) => a.name.localeCompare(b.name) || b.items - a.items).forEach((z) => rows.push([z.name, z.size, z.items]));
+    }
+
+    rows.push([], ['PER SELLER'], ['Sold by', 'Sales', 'Items', 'Total']);
+    Object.entries(bySeller).sort((a, b) => b[1].total - a[1].total).forEach(([name, S]) => rows.push([name, S.sales, S.items, r2(S.total)]));
     return rows;
   }
   const bandSlug = (bandId) => slug(bandById(bandId).name);
@@ -252,14 +334,14 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
     },
     'export-sales': () => {
       const bandId = merchBand();
-      saveCsv(`${bandSlug(bandId)}-merch-sales-${fileDate()}.csv`, salesRows(bandId, salesOf(bandId)));
+      saveCsv(`${bandSlug(bandId)}-merch-sales-${fileDate()}.csv`, salesRows(bandId, salesOf(bandId), 'All sales'));
       return 'none';
     },
     'export-night': (el) => {
       const bandId = merchBand();
       const key = el.dataset.key;
       const t = nightTitle(bandId, key);
-      saveCsv(`${bandSlug(bandId)}-merch-${t.date || fileDate()}-${slug(t.place)}.csv`, salesRows(bandId, nightSales(bandId, key)));
+      saveCsv(`${bandSlug(bandId)}-merch-${t.date || fileDate()}-${slug(t.place)}.csv`, salesRows(bandId, nightSales(bandId, key), `${t.place}`));
       return 'none';
     }
   });
@@ -285,7 +367,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
     let counts = 0;
     rows.slice(1).forEach((r) => {
       const name = get(r, C.name);
-      if (!name) return;
+      if (!name || /^total$/i.test(name)) return;
       const id = get(r, C.id);
       const p = (id && existing.find((x) => x.id === id)) || existing.find((x) => norm(x.name) === norm(name));
       const key = p ? p.id : 'new:' + norm(name);
