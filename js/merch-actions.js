@@ -91,8 +91,32 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const bandId = merchBand();
       const s = salesOf(bandId).find((x) => x.id === el.dataset.id);
       if (!s || !confirm(`Undo this sale (${eur(s.total)})? The items go back into stock.`)) return 'none';
-      const moves = s.items.map((i) => ({ pid: i.pid, cid: i.cid, loc: s.loc || 'van', size: i.size, n: 1 }));
-      run(async () => { await backend().undoSale(bandId, s.id, moves); toast('Sale undone.'); });
+      run(async () => { await backend().undoSale(bandId, s.id, backMoves(bandId, [s])); toast('Sale undone. The items are back in stock.'); });
+      return 'none';
+    },
+    'sale-pay': (el) => {
+      const bandId = merchBand();
+      const s = salesOf(bandId).find((x) => x.id === el.dataset.id);
+      if (!s) return 'none';
+      const { id, ...rest } = s;
+      const pay = s.pay === 'cash' ? 'card' : 'cash';
+      run(async () => { await backend().saveMerch(bandId, 'sales', id, { ...rest, pay }); toast(`Changed to ${pay}.`); });
+      return 'none';
+    },
+    'delete-night': (el) => {
+      const bandId = merchBand();
+      const key = el.dataset.key;
+      const list = nightSales(bandId, key);
+      const total = list.reduce((t, x) => t + x.total, 0);
+      const msg = list.length
+        ? `Delete this night? All ${list.length} ${list.length === 1 ? 'sale' : 'sales'} (${eur(total)}) and the cash count are removed, and the items go back into stock.`
+        : 'Delete this night and its cash count?';
+      if (!confirm(msg)) return 'none';
+      run(async () => {
+        await backend().deleteNight(bandId, key, list.map((x) => x.id), backMoves(bandId, list));
+        location.hash = '#/merch/nights';
+        toast('Night deleted.');
+      });
       return 'none';
     },
     'do-moves': () => {
@@ -164,6 +188,12 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       return 'none';
     }
   });
+
+  // Put sold items back (only for products that still exist)
+  function backMoves(bandId, sales) {
+    const ids = new Set(products(bandId).map((p) => p.id));
+    return sales.flatMap((x) => x.items.filter((i) => ids.has(i.pid)).map((i) => ({ pid: i.pid, cid: i.cid, loc: x.loc || 'van', size: i.size, n: 1 })));
+  }
 
   function addToCart(bandId, p, cid, size) {
     const c = p.colours.find((x) => x.id === cid) || p.colours[0];

@@ -214,6 +214,13 @@ export const backend = {
     if (s.by !== uid() && !isMgmt(b)) deny();
     return this.changeStock(b, moves, () => { delete mlist(b, 'sales')[saleId]; });
   },
+  async deleteNight(b, key, saleIds, moves) {
+    if (!isMgmt(b)) deny();
+    return this.changeStock(b, moves, () => {
+      saleIds.forEach((id) => delete mlist(b, 'sales')[id]);
+      delete mlist(b, 'nights')[key];
+    });
+  },
   async saveNight(b, key, data) {
     if (!isMember(b)) deny();
     const L = mlist(b, 'nights');

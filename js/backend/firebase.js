@@ -193,6 +193,12 @@ export const backend = {
   async undoSale(bandId, saleId, moves) {
     return this.changeStock(bandId, moves, (batch, ref) => batch.delete(ref('sales', saleId)));
   },
+  async deleteNight(bandId, key, saleIds, moves) {
+    return this.changeStock(bandId, moves, (batch, ref) => {
+      saleIds.forEach((id) => batch.delete(ref('sales', id)));
+      batch.delete(ref('nights', key));
+    });
+  },
   async saveNight(bandId, key, data) {
     w(() => setDoc(sub(bandId, 'nights', key), { ...data, updatedAt: serverTimestamp() }, { merge: true }));
   },

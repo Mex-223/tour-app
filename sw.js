@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.7.2';
-const NOTES = 'Merch: picking a size when selling now works on laptops too.';
+const VERSION = '1.7.3';
+const NOTES = 'Merch: undo any sale, switch a sale between card and cash, and delete a whole night (items go back into stock).';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [

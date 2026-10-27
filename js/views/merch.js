@@ -250,8 +250,15 @@ export function renderNight(key) {
         ${hints.moves.length ? '<button type="button" class="btn-outline" data-action="do-moves">Done, moved them (update the stock)</button>' : ''}
       </div>` : ''}
 
-    ${s.count ? `<h2 class="section-h">All sales</h2>${s.list.slice().reverse().map((x) => `<div class="cash-line"><span>${esc(String(x.at || '').slice(11, 16))} · ${esc(x.items.map((i) => i.name + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}</span><span>${x.pay === 'cash' ? 'Cash' : 'Card'} ${eur(x.total)}</span></div>`).join('')}` : '<div class="empty">No sales for this night yet.</div>'}
+    ${s.count ? `<h2 class="section-h">All sales</h2>${s.list.slice().reverse().map((x) => `<div class="person sale-row">
+      <span class="stack-2 grow"><span>${esc(x.items.map((i) => i.name + (i.colour ? ' ' + i.colour : '') + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}</span>
+      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}${x.byName ? ' · ' + esc(x.byName) : ''}</span></span>
+      ${mgmt ? `<button type="button" class="btn-small" data-action="sale-pay" data-id="${esc(x.id)}" aria-label="Change to ${x.pay === 'cash' ? 'card' : 'cash'}">→ ${x.pay === 'cash' ? 'Card' : 'Cash'}</button>` : ''}
+      ${x.by === me.id || mgmt ? `<button type="button" class="btn-small" data-action="undo-sale" data-id="${esc(x.id)}">Undo</button>` : ''}
+    </div>`).join('')}` : '<div class="empty">No sales for this night yet.</div>'}
     ${s.count ? '<button type="button" class="btn-outline" data-action="share-night">Share report</button>' : ''}
+    ${mgmt ? `<button type="button" class="btn-outline danger" data-action="delete-night" data-key="${esc(key)}">${icons.close(16)} Delete this night${s.count ? ` (${s.count} ${s.count === 1 ? 'sale' : 'sales'})` : ''}</button>
+      <p class="muted small">For test sales or mistakes: removes the sales and the cash count, and puts the items back into stock.</p>` : ''}
   </main>`;
 }
 
