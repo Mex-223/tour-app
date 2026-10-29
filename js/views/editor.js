@@ -48,13 +48,21 @@ function group(title, inner, open = false) {
   return `<details class="sec" ${open ? 'open' : ''}><summary><span class="sec-title">${esc(title)}</span>${icons.chevronDown(18)}</summary><div class="sec-body">${inner}</div></details>`;
 }
 
-// Times in quarter hours (00, 15, 30, 45). An older time that isn't on the grid is kept as an extra option.
-// The list starts at 06:00 and ends with the after-midnight times (a show night runs late).
-const QUARTERS = Array.from({ length: 96 }, (_, k) => { const i = (k + 24) % 96; return `${String(Math.floor(i / 4)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}`; });
+// Times: hour and minutes picked separately; minutes in quarter hours (00, 15, 30, 45).
+// Hours start at 06 and end with the after-midnight hours (a show night runs late).
+// An older time that isn't on a quarter hour (e.g. 21:10) keeps its minutes as an extra option.
+const HOURS = Array.from({ length: 24 }, (_, k) => String((k + 6) % 24).padStart(2, '0'));
+const MINUTES = ['00', '15', '30', '45'];
 function timeSelect(label, name, value) {
-  const val = String(value || '').trim();
-  const list = val && !QUARTERS.includes(val) ? [val, ...QUARTERS] : QUARTERS;
-  return `<label class="lbl">${esc(label)}<select name="${name}" class="time-select"><option value="">–</option>${list.map((t) => `<option ${t === val ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+  const m = String(value || '').trim().match(/^(\d{1,2})[:.](\d{2})/);
+  const hh = m ? m[1].padStart(2, '0') : '';
+  const mm = m ? m[2] : '';
+  const mins = mm && !MINUTES.includes(mm) ? [...MINUTES, mm].sort() : MINUTES;
+  return `<fieldset class="lbl time-pick"><legend class="lbl-text">${esc(label)}</legend><div class="time-pair">
+    <select name="${name}__h" aria-label="${esc(label)} hour"><option value="">–</option>${HOURS.map((h) => `<option ${h === hh ? 'selected' : ''}>${h}</option>`).join('')}</select>
+    <span aria-hidden="true">:</span>
+    <select name="${name}__m" aria-label="${esc(label)} minutes">${mins.map((x) => `<option ${x === (mm || '00') ? 'selected' : ''}>${x}</option>`).join('')}</select>
+  </div></fieldset>`;
 }
 
 export function renderEditor(mode, arg) {
@@ -106,8 +114,8 @@ export function renderEditor(mode, arg) {
       ${bandField}
       ${typeField}
       ${input('Title', 'title', d.title, 'maxlength="80" placeholder="e.g. Club show, Band rehearsal"')}
-      <div class="grid-3">
-        <label class="lbl">Date<input type="date" name="date" value="${v(d.date)}" required></label>
+      <label class="lbl">Date<input type="date" name="date" value="${v(d.date)}" required></label>
+      <div class="grid-2">
         ${timeSelect('Start', 'time', d.time)}
         ${timeSelect('End', 'end', d.end)}
       </div>
@@ -150,7 +158,10 @@ function parseTimetable(text) {
 
 export function collectDraft(form) {
   const f = new FormData(form);
-  const g = (n) => String(f.get(n) || '').trim();
+  const g = (n) => {
+    if (f.has(n + '__h')) { const h = String(f.get(n + '__h') || ''); return h ? `${h}:${f.get(n + '__m') || '00'}` : ''; }
+    return String(f.get(n) || '').trim();
+  };
   const num = (n) => (g(n) === '' ? null : Math.max(0, parseInt(g(n), 10) || 0));
   const d = state.draft || {};
   return {

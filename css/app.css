@@ -480,3 +480,8 @@ a.prod-card:hover { border-color: #3A3F46; }
   .sell-layout .cart { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.55); }
 }
 .file-btn { position: relative; cursor: pointer; }
+.time-pick { border: 0; padding: 0; margin: 0; min-width: 0; }
+.time-pick legend { padding: 0; margin-bottom: 6px; }
+.time-pair { display: flex; align-items: center; gap: 6px; }
+.time-pair select { flex: 1; min-width: 0; text-align: center; }
+.time-pair span { color: var(--muted); font-weight: 600; }
