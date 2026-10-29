@@ -48,6 +48,15 @@ function group(title, inner, open = false) {
   return `<details class="sec" ${open ? 'open' : ''}><summary><span class="sec-title">${esc(title)}</span>${icons.chevronDown(18)}</summary><div class="sec-body">${inner}</div></details>`;
 }
 
+// Times in quarter hours (00, 15, 30, 45). An older time that isn't on the grid is kept as an extra option.
+// The list starts at 06:00 and ends with the after-midnight times (a show night runs late).
+const QUARTERS = Array.from({ length: 96 }, (_, k) => { const i = (k + 24) % 96; return `${String(Math.floor(i / 4)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}`; });
+function timeSelect(label, name, value) {
+  const val = String(value || '').trim();
+  const list = val && !QUARTERS.includes(val) ? [val, ...QUARTERS] : QUARTERS;
+  return `<label class="lbl">${esc(label)}<select name="${name}" class="time-select"><option value="">–</option>${list.map((t) => `<option ${t === val ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+}
+
 export function renderEditor(mode, arg) {
   const d = ensureDraft(mode, arg);
   const back = mode === 'edit' && d ? `#/day/${esc(d.id)}` : '#/schedule';
@@ -99,8 +108,8 @@ export function renderEditor(mode, arg) {
       ${input('Title', 'title', d.title, 'maxlength="80" placeholder="e.g. Club show, Band rehearsal"')}
       <div class="grid-3">
         <label class="lbl">Date<input type="date" name="date" value="${v(d.date)}" required></label>
-        <label class="lbl">Start<input type="time" name="time" value="${v(d.time)}"></label>
-        <label class="lbl">End<input type="time" name="end" value="${v(d.end)}"></label>
+        ${timeSelect('Start', 'time', d.time)}
+        ${timeSelect('End', 'end', d.end)}
       </div>
       ${input('City / place', 'place', d.place, 'maxlength="80" placeholder="e.g. Graz or Proberaum"')}
       ${people}
@@ -113,13 +122,13 @@ export function renderEditor(mode, arg) {
         <div class="grid-2">${input('Contact name', 'contact_name', c.name, 'maxlength="60"')}${input('Role', 'contact_role', c.role, 'maxlength="40" placeholder="Promoter"')}</div>
         <label class="lbl">Contact phone<input type="tel" name="contact_phone" value="${v(c.phone)}" maxlength="30" placeholder="+43 …"></label>`)}
       ${group('Travel', `<div class="grid-2">
-        ${input('Departure time', 'travel_depart', d.travel.depart, 'maxlength="10" placeholder="13:15"')}
+        ${timeSelect('Departure time', 'travel_depart', d.travel.depart)}
         ${input('From', 'travel_from', d.travel.from, 'maxlength="60"')}
         ${input('Method', 'travel_method', d.travel.method, 'maxlength="40" placeholder="Van, train…"')}
         ${input('Driver', 'travel_driver', d.travel.driver, 'maxlength="60"')}</div>
         ${input('Est. cost', 'travel_cost', d.travel.cost, 'maxlength="30" placeholder="€"')}`)}
       ${group('Hotel', `${input('Hotel name', 'hotel_name', d.hotel.name, 'maxlength="80"')}${input('Address', 'hotel_address', d.hotel.address, 'maxlength="160"')}${input('Check-in', 'hotel_checkIn', d.hotel.checkIn, 'maxlength="20"')}`)}
-      ${group('Catering / dinner', `${input('What', 'catering_text', d.catering.text, 'maxlength="160" placeholder="Hot meal for 6, rider drinks"')}${input('Time', 'catering_time', d.catering.time, 'maxlength="20"')}${input('Dietary notes', 'catering_diet', d.catering.diet, 'maxlength="120"')}`)}
+      ${group('Catering / dinner', `${input('What', 'catering_text', d.catering.text, 'maxlength="160" placeholder="Hot meal for 6, rider drinks"')}${timeSelect('Time', 'catering_time', d.catering.time)}${input('Dietary notes', 'catering_diet', d.catering.diet, 'maxlength="120"')}`)}
       ${group('Guest list', `<div class="grid-2"><label class="lbl">Used<input type="number" min="0" name="guests_used" value="${v(d.guests.used)}"></label><label class="lbl">Total slots<input type="number" min="0" name="guests_total" value="${v(d.guests.total)}"></label></div>`)}
       ${group('Setlist', `<label class="lbl">Songs or a note<textarea name="setlist" rows="5">${esc(d.setlist)}</textarea></label>`)}
       ${group('Notes', `<label class="lbl">Anything else<textarea name="notes" rows="4">${esc(d.notes)}</textarea></label>`, !!d.notes)}
