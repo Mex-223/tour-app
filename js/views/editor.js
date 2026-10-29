@@ -48,22 +48,24 @@ function group(title, inner, open = false) {
   return `<details class="sec" ${open ? 'open' : ''}><summary><span class="sec-title">${esc(title)}</span>${icons.chevronDown(18)}</summary><div class="sec-body">${inner}</div></details>`;
 }
 
-// Times: hour and minutes picked separately; minutes in quarter hours (00, 15, 30, 45).
-// Hours start at 06 and end with the after-midnight hours (a show night runs late).
-// An older time that isn't on a quarter hour (e.g. 21:10) keeps its minutes as an extra option.
-const HOURS = Array.from({ length: 24 }, (_, k) => String((k + 6) % 24).padStart(2, '0'));
-const MINUTES = ['00', '15', '30', '45'];
+// Times: the phone's own rolling time picker. Whatever is picked snaps to the nearest
+// quarter hour (00, 15, 30, 45). Older saved times (e.g. 21:10) stay as they are until changed.
 function timeSelect(label, name, value) {
-  const m = String(value || '').trim().match(/^(\d{1,2})[:.](\d{2})/);
-  const hh = m ? m[1].padStart(2, '0') : '';
-  const mm = m ? m[2] : '';
-  const mins = mm && !MINUTES.includes(mm) ? [...MINUTES, mm].sort() : MINUTES;
-  return `<fieldset class="lbl time-pick"><legend class="lbl-text">${esc(label)}</legend><div class="time-pair">
-    <select name="${name}__h" aria-label="${esc(label)} hour"><option value="">–</option>${HOURS.map((h) => `<option ${h === hh ? 'selected' : ''}>${h}</option>`).join('')}</select>
-    <span aria-hidden="true">:</span>
-    <select name="${name}__m" aria-label="${esc(label)} minutes">${mins.map((x) => `<option ${x === (mm || '00') ? 'selected' : ''}>${x}</option>`).join('')}</select>
-  </div></fieldset>`;
+  return `<label class="lbl">${esc(label)}<input type="time" step="900" data-quarter name="${name}" value="${esc(String(value || '').trim())}"></label>`;
 }
+export function snapQuarter(v) {
+  const m = String(v || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return v;
+  const total = (Math.round((Number(m[1]) * 60 + Number(m[2])) / 15) * 15) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+document.addEventListener('change', (ev) => {
+  const t = ev.target;
+  if (t.matches && t.matches('input[type=time][data-quarter]') && t.value) {
+    const snapped = snapQuarter(t.value);
+    if (snapped !== t.value) t.value = snapped;
+  }
+});
 
 export function renderEditor(mode, arg) {
   const d = ensureDraft(mode, arg);
@@ -114,8 +116,8 @@ export function renderEditor(mode, arg) {
       ${bandField}
       ${typeField}
       ${input('Title', 'title', d.title, 'maxlength="80" placeholder="e.g. Club show, Band rehearsal"')}
-      <label class="lbl">Date<input type="date" name="date" value="${v(d.date)}" required></label>
-      <div class="grid-2">
+      <div class="grid-3">
+        <label class="lbl">Date<input type="date" name="date" value="${v(d.date)}" required></label>
         ${timeSelect('Start', 'time', d.time)}
         ${timeSelect('End', 'end', d.end)}
       </div>
@@ -158,10 +160,7 @@ function parseTimetable(text) {
 
 export function collectDraft(form) {
   const f = new FormData(form);
-  const g = (n) => {
-    if (f.has(n + '__h')) { const h = String(f.get(n + '__h') || ''); return h ? `${h}:${f.get(n + '__m') || '00'}` : ''; }
-    return String(f.get(n) || '').trim();
-  };
+  const g = (n) => String(f.get(n) || '').trim();
   const num = (n) => (g(n) === '' ? null : Math.max(0, parseInt(g(n), 10) || 0));
   const d = state.draft || {};
   return {

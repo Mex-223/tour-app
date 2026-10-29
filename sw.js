@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.8.4';
-const NOTES = 'Times: pick hour and minutes separately (minutes in 00, 15, 30, 45).';
+const VERSION = '1.8.5';
+const NOTES = 'Times: back to the rolling time picker; the time snaps to the nearest quarter hour.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
