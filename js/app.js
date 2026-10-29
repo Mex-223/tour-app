@@ -510,6 +510,40 @@ document.addEventListener('change', (ev) => {
   }
 });
 
+// Calendar: swipe left/right (phone) or two-finger swipe (laptop trackpad) to change the month.
+function swipeMonth(delta) {
+  shiftMonth(delta);
+  render();
+  const cal = document.querySelector('.cal');
+  if (cal) cal.classList.add(delta > 0 ? 'from-right' : 'from-left');
+}
+let touch = null;
+document.addEventListener('touchstart', (ev) => {
+  const cal = ev.target.closest && ev.target.closest('.cal');
+  touch = cal && ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY, t: Date.now() } : null;
+}, { passive: true });
+document.addEventListener('touchend', (ev) => {
+  if (!touch) return;
+  const p = ev.changedTouches[0];
+  const dx = p.clientX - touch.x;
+  const dy = p.clientY - touch.y;
+  const quick = Date.now() - touch.t < 800;
+  touch = null;
+  if (quick && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) swipeMonth(dx < 0 ? 1 : -1);
+}, { passive: true });
+let wheelX = 0;
+let wheelLock = 0;
+document.addEventListener('wheel', (ev) => {
+  if (!(ev.target.closest && ev.target.closest('.cal')) || Math.abs(ev.deltaX) <= Math.abs(ev.deltaY)) return;
+  if (Date.now() < wheelLock) return;
+  wheelX += ev.deltaX;
+  if (Math.abs(wheelX) > 90) {
+    swipeMonth(wheelX > 0 ? 1 : -1);
+    wheelX = 0;
+    wheelLock = Date.now() + 700;
+  }
+}, { passive: true });
+
 document.addEventListener('focusout', () => {
   setTimeout(() => { if (state.needsRender && !state.formDirty) scheduleRender(); }, 0);
 });

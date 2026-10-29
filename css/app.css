@@ -485,3 +485,8 @@ a.prod-card:hover { border-color: #3A3F46; }
 .time-pair { display: flex; align-items: center; gap: 6px; }
 .time-pair select { flex: 1; min-width: 0; text-align: center; }
 .time-pair span { color: var(--muted); font-weight: 600; }
+.cal { touch-action: pan-y; }
+.cal.from-right { animation: cal-in-r 0.22s ease-out; }
+.cal.from-left { animation: cal-in-l 0.22s ease-out; }
+@keyframes cal-in-r { from { transform: translateX(28px); opacity: 0.3; } to { transform: none; opacity: 1; } }
+@keyframes cal-in-l { from { transform: translateX(-28px); opacity: 0.3; } to { transform: none; opacity: 1; } }

@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.8.5';
-const NOTES = 'Times: back to the rolling time picker; the time snaps to the nearest quarter hour.';
+const VERSION = '1.8.6';
+const NOTES = 'Calendar: swipe left or right to change the month (two-finger swipe on a laptop trackpad).';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [
