@@ -5,7 +5,7 @@ import { icons } from '../icons.js';
 import { esc, fmtDay, fmtDayLong } from '../utils.js';
 import {
   LOCS, LOC_NAME, KINDS, SIZE_PRESETS, COLOURS, eur, merchBand, products, productById, photo, count, stockAt, totalOf, lines,
-  bundles, bundleDiscount, parseSizes, nightKeyOf, salesOf, nightSales, nightDoc, sellOptions, nightTitle, nights, summary, refillHints, stockWarnings
+  bundles, bundleDiscount, parseSizes, cartLines, colourHex, productLog, LOG_TYPES, nightKeyOf, salesOf, nightSales, nightDoc, sellOptions, nightTitle, nights, summary, refillHints, stockWarnings
 } from '../merch.js';
 import { kb } from '../photo.js';
 
@@ -119,40 +119,73 @@ export function renderSell() {
   const { shows, today } = sellOptions(bandId);
   const key = currentNight(bandId);
   const loc = state.sellLoc || 'van';
+  const other = loc === 'van' ? 'storage' : 'van';
   const cart = cartFor(bandId);
   const tonight = summary(bandId, nightSales(bandId, key));
-  const inCart = (pid, cid, z) => cart.items.filter((i) => i.pid === pid && i.cid === cid && i.size === z).length;
-  const ls = lines(bandId);
+  const inCart = (pid, cid, z) => cart.items.filter((i) => i.pid === pid && (cid == null || i.cid === cid) && (z == null || i.size === z)).length;
+  const ps = products(bandId);
 
   const opts = [...shows.map((e) => [e.id, `${fmtDay(e.date)} · ${e.place || e.title || 'Show'}`]), ['d-' + today, `${fmtDay(today)} · no show (other sale)`]];
   if (!opts.some(([k]) => k === key)) opts.unshift([key, nightTitle(bandId, key).place]);
 
-  const tiles = ls.map(({ p, c }) => {
-    const left = p.sizes.reduce((s, z) => s + Math.max(0, count(p, c.id, loc, z) - inCart(p.id, c.id, z)), 0);
-    return `<button type="button" class="sell-tile ${left ? '' : 'none-left'}" data-action="sell-tap" data-pid="${esc(p.id)}" data-cid="${esc(c.id)}">
-      ${pic(bandId, p, c, 'pic-sell')}
+  // One card per product (all colours together)
+  const tiles = ps.map((p) => {
+    const here = p.colours.reduce((t, c) => t + totalOf(p, c.id, loc), 0) - inCart(p.id);
+    const there = p.colours.reduce((t, c) => t + totalOf(p, c.id, other), 0);
+    const withPhoto = p.colours.find((c) => photo(bandId, p.id, c.id)) || p.colours[0];
+    const sub = p.colours.length > 1 ? `${eur(p.price)} · ${p.colours.length} colours` : [eur(p.price), p.colours[0].name].filter(Boolean).join(' · ');
+    const left = here > 0 ? `${here} left` : `0 here · ${there} in ${LOC_NAME[other].toLowerCase()}`;
+    return `<button type="button" class="sell-tile ${here > 0 ? '' : 'none-left'}" data-action="sell-tap" data-pid="${esc(p.id)}">
+      ${pic(bandId, p, withPhoto, 'pic-sell')}
+      ${p.colours.length > 1 ? `<span class="dots" aria-hidden="true">${p.colours.map((c) => `<i style="background:${esc(c.hex)}"></i>`).join('')}</span>` : ''}
       <span class="sell-name">${esc(p.name)}</span>
-      <span class="muted small">${esc([p.colours.length > 1 || c.name ? c.name : '', eur(p.price)].filter(Boolean).join(' · '))}</span>
-      <span class="sell-left ${left ? (left <= p.lowAt ? 'low' : '') : 'out'}">${left ? left + ' left' : 'none in ' + LOC_NAME[loc].toLowerCase()}</span>
+      <span class="muted small">${esc(sub)}</span>
+      <span class="sell-left ${here > 0 ? (here <= p.lowAt ? 'low' : '') : 'empty-here'}">${esc(left)}</span>
     </button>`;
   }).join('');
 
   const { discount, used } = bundleDiscount(bandId, cart.items);
-  const sum = cart.items.reduce((s, i) => s + i.price, 0) - discount;
+  const sum = Math.round((cart.items.reduce((t, i) => t + i.price, 0) - discount) * 100) / 100;
   const pay = state.sellPay || 'card';
-  const cartHtml = cart.items.length ? `<div class="cart">
-      ${cart.items.map((i, k) => `<div class="cart-row"><span class="grow">${esc(i.name)}${i.colour ? ' · ' + esc(i.colour) : ''}${i.size && i.size !== 'One size' ? ' <b>' + esc(i.size) + '</b>' : ''}</span><span>${eur(i.price)}</span>
-        <button type="button" class="icon-btn small-x" data-action="cart-remove" data-i="${k}" aria-label="Remove ${esc(i.name)}">${icons.close(16)}</button></div>`).join('')}
-      ${used.map((u) => `<div class="cart-row bundle"><span class="grow">Bundle: ${esc(u.name)}</span><span>−${eur(u.off)}</span></div>`).join('')}
+  const lines = cartLines(cart.items);
+  const given = state.sellGiven;
+  const givenOpts = [['exact', 'Exact'], [20, '€20'], [50, '€50'], [100, '€100']];
+  const givenEur = given === 'exact' ? sum : Number(given) || null;
+  const sold = state.sold && state.sold.band === bandId ? state.sold : null;
+
+  const cartHtml = lines.length ? `<div class="cart">
+      ${lines.map((l) => {
+        const sizeTxt = l.size && l.size !== 'One size' ? l.size : '';
+        const detail = [l.colour, sizeTxt].filter(Boolean).join(' · ');
+        return `<div class="cart-line">
+        <i class="cdot" style="background:${esc(colourHex(bandId, l.pid, l.cid))}" aria-hidden="true"></i>
+        <span class="grow cart-name"><b>${esc(l.name)}</b>${detail ? `<span class="muted small">${esc(detail)}</span>` : ''}</span>
+        <button type="button" class="qty-btn" data-action="cart-dec" data-pid="${esc(l.pid)}" data-cid="${esc(l.cid)}" data-size="${esc(l.size)}" aria-label="One less ${esc(l.name)}">−</button>
+        <span class="qty">${l.qty}</span>
+        <button type="button" class="qty-btn" data-action="cart-inc" data-pid="${esc(l.pid)}" data-cid="${esc(l.cid)}" data-size="${esc(l.size)}" aria-label="One more ${esc(l.name)}">+</button>
+        <b class="line-sum">${eur(l.price * l.qty)}</b>
+      </div>`;
+      }).join('')}
+      ${used.map((u) => `<div class="cart-line bundle"><span class="grow">Bundle: ${esc(u.name)}</span><b>−${eur(u.off)}</b></div>`).join('')}
+      <div class="cart-total"><span class="muted">${cart.items.length} ${cart.items.length === 1 ? 'item' : 'items'}</span><b>${eur(sum)}</b></div>
       <div class="seg pay-seg" role="group" aria-label="Payment">${[['card', 'Card'], ['cash', 'Cash']].map(([k, l]) => `<button type="button" class="${pay === k ? 'on' : ''}" data-action="sell-pay" data-pay="${k}" aria-pressed="${pay === k}">${l}</button>`).join('')}</div>
-      <button type="button" class="btn-primary" data-action="charge">Charge ${eur(sum)} · ${pay === 'cash' ? 'cash' : 'card'}</button>
-    </div>` : `<div class="empty">${esc(state.lastSaleText || 'Tap a product to start a sale.')}</div>`;
+      ${pay === 'cash' ? `<div class="given">
+        <span class="muted small">Given</span>
+        <div class="given-btns">${givenOpts.map(([v, l]) => `<button type="button" class="${String(given) === String(v) ? 'on' : ''}" data-action="sell-given" data-v="${v}" aria-pressed="${String(given) === String(v)}">${l}</button>`).join('')}</div>
+        ${givenEur != null ? (givenEur >= sum ? `<div class="change"><span>Change</span><b>${eur(givenEur - sum)}</b></div>` : `<div class="change short"><span>Not enough</span><b>${eur(sum - givenEur)} missing</b></div>`) : ''}
+      </div>` : ''}
+      <button type="button" class="btn-primary charge-btn" data-action="charge">Charge ${eur(sum)} · ${pay === 'cash' ? 'cash' : 'card'}</button>
+      <button type="button" class="link-btn clear-sale" data-action="cart-clear">Clear sale</button>
+    </div>` : (sold ? '' : `<div class="empty">Tap a product to start a sale. Add as many items as you like, then charge once.</div>`);
+
+  const soldHtml = sold ? `<div class="sold-banner" role="status"><span><b>Sold · ${eur(sold.total)}</b> · stock updated</span>
+      <button type="button" class="btn-small" data-action="undo-last">Undo</button></div>` : '';
 
   const mine = tonight.list.slice().reverse().slice(0, 4);
-  const last = mine.length ? `<h2 class="section-h">Last sales</h2>${mine.map((s) => `<div class="person sale-row">
-      <span class="stack-2 grow"><span>${esc(s.items.map((i) => i.name + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}</span>
-      <span class="muted small">${esc(String(s.at || '').slice(11, 16))} · ${s.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(s.total)}${s.by !== me.id ? ' · ' + esc(s.byName || '') : ''}</span></span>
-      ${s.by === me.id || isMgmt(bandId) ? `<button type="button" class="btn-small" data-action="undo-sale" data-id="${esc(s.id)}">Undo</button>` : ''}
+  const last = mine.length ? `<h2 class="section-h">Last sales</h2>${mine.map((x) => `<div class="person sale-row">
+      <span class="stack-2 grow"><span>${esc(cartLines(x.items).map((i) => (i.qty > 1 ? i.qty + '× ' : '') + i.name + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}</span>
+      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}${x.by !== me.id ? ' · ' + esc(x.byName || '') : ''}</span></span>
+      ${x.by === me.id || isMgmt(bandId) ? `<button type="button" class="btn-small" data-action="undo-sale" data-id="${esc(x.id)}">Undo</button>` : ''}
     </div>`).join('')}` : '';
 
   return head('merch/sell', bandId, 'Merch') + `<main id="main" class="merch-main">
@@ -166,28 +199,35 @@ export function renderSell() {
     </div>
     <div class="sell-layout">
       <div class="sell-grid">${tiles || `<div class="empty">No products yet. ${isMgmt(bandId) ? 'Add them under Stock.' : 'MGMT can add them under Stock.'}</div>`}</div>
-      <div class="sell-side">${cartHtml}${last}
+      <div class="sell-side">${soldHtml}${cartHtml}${last}
         <a class="btn-outline" href="#/merch/night/${esc(key)}">Night report & cash count</a>
       </div>
     </div>
-  </main>${sizeSheet(bandId, loc, inCart)}`;
+  </main>${pickSheet(bandId, loc, inCart)}`;
 }
 
-function sizeSheet(bandId, loc, inCart) {
+// The sheet: pick colour + size
+function pickSheet(bandId, loc, inCart) {
   if (!state.pick) return '';
   const p = productById(bandId, state.pick.pid);
-  const c = p && p.colours.find((x) => x.id === state.pick.cid);
-  if (!p || !c) return '';
+  if (!p) return '';
+  const c = p.colours.find((x) => x.id === state.pick.cid) || p.colours[0];
+  const left = (cid, z) => count(p, cid, loc, z) - inCart(p.id, cid, z);
   return `<div class="sheet-backdrop pick-backdrop" data-action="pick-close"></div>
-  <div class="sheet pick-sheet" role="dialog" aria-modal="true" aria-label="Pick a size">
+  <div class="sheet pick-sheet" role="dialog" aria-modal="true" aria-label="${esc(p.name)}: pick ${p.colours.length > 1 ? 'colour and ' : ''}size">
     <div class="sheet-handle" aria-hidden="true"></div>
-    <div class="row-inline">${pic(bandId, p, c, 'pic-mini')}<span class="stack-2 grow"><span class="sheet-title">${esc(p.name)}${c.name ? ' · ' + esc(c.name) : ''}</span><span class="muted small">${eur(p.price)} · from the ${esc(LOC_NAME[loc].toLowerCase())}</span></span></div>
+    <div class="row-inline">${pic(bandId, p, c, 'pic-mini')}<span class="stack-2 grow"><span class="sheet-title">${esc(p.name)}</span><span class="muted small">${eur(p.price)} · from the ${esc(LOC_NAME[loc].toLowerCase())}</span></span>
+      <button type="button" class="icon-btn" data-action="pick-close" aria-label="Close">${icons.close(20)}</button></div>
+    ${p.colours.length > 1 ? `<div class="colour-chips" role="group" aria-label="Colour">${p.colours.map((x) => {
+      const n = p.sizes.reduce((t, z) => t + Math.max(0, left(x.id, z)), 0);
+      return `<button type="button" class="colour-chip ${x.id === c.id ? 'on' : ''}" data-action="pick-colour" data-cid="${esc(x.id)}" aria-pressed="${x.id === c.id}"><i style="background:${esc(x.hex)}" aria-hidden="true"></i>${esc(x.name || 'Colour')}<span class="${n < 3 ? 'n low' : 'n'}">${n}</span></button>`;
+    }).join('')}</div>` : ''}
     <div class="size-pick">${p.sizes.map((z) => {
-      const n = count(p, c.id, loc, z) - inCart(p.id, c.id, z);
+      const n = left(c.id, z);
       return `<button type="button" class="size-btn ${n <= 0 ? 'out' : n <= p.lowAt ? 'low' : ''}" data-action="pick-size" data-size="${esc(z)}">
-        <b>${esc(z)}</b><span>${n <= 0 ? 'none left' : n + ' left'}</span></button>`;
+        <b>${esc(z)}</b><span>${n <= 0 ? '0 left' : n + ' left'}</span></button>`;
     }).join('')}</div>
-    <p class="muted small">None left but you still have one? Tap it anyway, the count will go below zero and you can fix it under Stock.</p>
+    <p class="muted small">Tap a size to add it to the sale. None left but you still have one? Tap it anyway, the count goes below zero and you can fix it under Stock.</p>
   </div>`;
 }
 
@@ -303,11 +343,12 @@ export function ensureProductDraft(bandId, id) {
       key, band: bandId, id: p.id, name: p.name || '', kind: p.kind || 'shirt', price: p.price, cost: p.cost != null ? p.cost : '', lowAt: p.lowAt,
       sizesText: p.sizes.join(', '),
       colours: p.colours.map((c) => ({ ...c, photo: photo(bandId, p.id, c.id), photoChanged: false })),
-      stock: JSON.parse(JSON.stringify(p.stock || {})), order: p.order || 0
+      stock: JSON.parse(JSON.stringify(p.stock || {})), orig: JSON.parse(JSON.stringify(p.stock || {})), order: p.order || 0,
+      sel: p.colours[0].id, logType: 'edit', logNote: ''
     };
   } else {
     const first = cid();
-    state.pd = { key, band: bandId, id: null, name: '', kind: 'shirt', price: '', cost: '', lowAt: 2, sizesText: SIZE_PRESETS.shirt, colours: [{ id: first, name: 'Black', hex: '#17181B', photo: null, photoChanged: false }], stock: {}, order: Date.now() };
+    state.pd = { key, band: bandId, id: null, name: '', kind: 'shirt', price: '', cost: '', lowAt: 2, sizesText: SIZE_PRESETS.shirt, colours: [{ id: first, name: 'Black', hex: '#17181B', photo: null, photoChanged: false }], stock: {}, orig: {}, order: Date.now(), sel: first, logType: 'edit', logNote: '' };
   }
   return state.pd;
 }
@@ -325,33 +366,67 @@ export function renderProductForm(id) {
   const d = ensureProductDraft(bandId, id);
   const sizes = parseSizes(d.sizesText);
   d.renderedSizes = sizes;
-  const colourBlocks = d.colours.map((c) => {
-    const st = d.stock[c.id] || {};
-    const total = LOCS.reduce((s, [l]) => s + sizes.reduce((t, z) => t + (Number((st[l] || {})[z]) || 0), 0), 0);
-    return `<fieldset class="card pad stack-8 colour-block">
+  if (!d.colours.some((c) => c.id === d.sel)) d.sel = d.colours[0].id;
+  const c = d.colours.find((x) => x.id === d.sel);
+  const n = pdNumbers(d, sizes);
+  const st = d.stock[c.id] || {};
+  const sumCls = (t) => (t <= 0 ? 'out' : t < 3 ? 'low' : '');
+  const log = d.id ? productLog(bandId, d.id, 5) : [];
+  const p0 = d.id ? productById(bandId, d.id) : null;
+
+  const card = `<fieldset class="card pad stack-8 colour-block">
+      <legend class="sr">${esc(c.name || 'Colour')}</legend>
       <div class="row-inline">
         ${c.photo ? `<img class="pic pic-edit" src="${c.photo}" alt="Photo ${esc(c.name)}">` : `<span class="pic pic-edit" style="background:#2C2F35">${art(d.kind, c.hex)}</span>`}
         <div class="stack-8 grow">
           <label class="photo-btn btn-small">${icons.plus(14)} Take photo<input type="file" accept="image/*" capture="environment" data-photo="${esc(c.id)}" class="sr"></label>
           <label class="photo-btn btn-small">From gallery<input type="file" accept="image/*" data-photo="${esc(c.id)}" class="sr"></label>
-          ${c.photo ? `<span class="muted small">${kb(c.photo)} KB · works offline${c.photo ? ` · <button type="button" class="link-btn small" data-action="pd-photo-remove" data-cid="${esc(c.id)}">remove</button>` : ''}</span>` : '<span class="muted small">Shrunk automatically to about 100 KB.</span>'}
+          ${c.photo ? `<span class="muted small">${kb(c.photo)} KB · works offline · <button type="button" class="link-btn small" data-action="pd-photo-remove" data-cid="${esc(c.id)}">remove</button></span>` : '<span class="muted small">Shrunk automatically to about 100 KB.</span>'}
         </div>
       </div>
       <div class="grid-2">
         <label class="lbl">Colour name<input type="text" name="c_name_${esc(c.id)}" maxlength="24" value="${esc(c.name || '')}" placeholder="e.g. Black"></label>
-        <label class="lbl">Colour<select name="c_hex_${esc(c.id)}">${COLOURS.map(([n, h]) => `<option value="${h}" ${h === c.hex ? 'selected' : ''}>${n}</option>`).join('')}${COLOURS.some(([, h]) => h === c.hex) ? '' : `<option value="${esc(c.hex)}" selected>Custom</option>`}</select></label>
+        <label class="lbl">Colour<select name="c_hex_${esc(c.id)}">${COLOURS.map(([nm, h]) => `<option value="${h}" ${h === c.hex ? 'selected' : ''}>${nm}</option>`).join('')}${COLOURS.some(([, h]) => h === c.hex) ? '' : `<option value="${esc(c.hex)}" selected>Custom</option>`}</select></label>
       </div>
-      <div class="stock-grid" style="--cols:${LOCS.length}">
-        <span class="label">Size</span>${LOCS.map(([, l]) => `<span class="label">${l}</span>`).join('')}
-        ${sizes.map((z, zi) => `<span class="size-cell"><b>${esc(z)}</b></span>${LOCS.map(([l]) => `<span class="stepper">
-          <button type="button" class="step" data-action="step" data-target="st_${esc(c.id)}_${l}_${zi}" data-d="-1" aria-label="${esc(z)} ${l} minus one">−</button>
-          <input type="number" inputmode="numeric" name="st_${esc(c.id)}_${l}_${zi}" value="${Number((st[l] || {})[z]) || 0}" aria-label="${esc(z)} ${LOCS.find((x) => x[0] === l)[1]}">
-          <button type="button" class="step" data-action="step" data-target="st_${esc(c.id)}_${l}_${zi}" data-d="1" aria-label="${esc(z)} ${l} plus one">+</button></span>`).join('')}`).join('')}
+      <div class="move-row"><span class="muted small"><b data-sel-storage>${n.byColour[c.id].storage}</b> in storage</span>
+        <button type="button" class="btn-small move-all" data-action="pd-move-all">Move all storage → van box</button></div>
+      <div class="stock-grid sum-grid">
+        <span class="label">Size</span><span class="label loc-van">Van box</span><span class="label loc-storage">Storage</span><span class="label right">Σ</span>
+        ${sizes.map((z, zi) => {
+          const t = (Number((st.van || {})[z]) || 0) + (Number((st.storage || {})[z]) || 0);
+          return `<span class="size-cell"><b>${esc(z)}</b></span>${LOCS.map(([l]) => `<span class="stepper">
+          <button type="button" class="step" data-action="step" data-target="st_${esc(c.id)}_${l}_${zi}" data-d="-1" aria-label="${esc(z)} ${LOC_NAME[l]} minus one">−</button>
+          <input type="number" inputmode="numeric" name="st_${esc(c.id)}_${l}_${zi}" value="${Number((st[l] || {})[z]) || 0}" aria-label="${esc(z)} ${LOC_NAME[l]}">
+          <button type="button" class="step" data-action="step" data-target="st_${esc(c.id)}_${l}_${zi}" data-d="1" aria-label="${esc(z)} ${LOC_NAME[l]} plus one">+</button></span>`).join('')}
+          <b class="sum-cell ${sumCls(t)}" data-sum="${zi}">${t}</b>`;
+        }).join('')}
       </div>
-      <div class="row-inline"><span class="muted small grow">${total} in total</span>
-        ${d.colours.length > 1 ? `<button type="button" class="btn-small danger" data-action="pd-colour-remove" data-cid="${esc(c.id)}">Remove colour</button>` : ''}</div>
+      <div class="row-inline wrap"><span class="muted small grow"><b data-sel-total>${n.byColour[c.id].total}</b> in total</span>
+        <span class="muted small legend-dots"><i class="ld low"></i>under 3 · <i class="ld out"></i>sold out</span></div>
+      <div class="grid-2">
+        <label class="lbl">What happened?<select name="logType">${[['edit', 'Manual edit'], ['delivery', 'Delivery'], ['count', 'Stock count'], ['gone', 'Damaged / given away']].map(([k, l]) => `<option value="${k}" ${d.logType === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="lbl">Note (optional)<input type="text" name="logNote" maxlength="60" value="${esc(d.logNote || '')}" placeholder="e.g. Spreadshirt SP-28974113"></label>
+      </div>
+      ${d.colours.length > 1 ? `<button type="button" class="btn-small danger" data-action="pd-colour-remove" data-cid="${esc(c.id)}">Remove colour ${esc(c.name || '')}</button>` : ''}
     </fieldset>`;
-  }).join('');
+
+  const recent = log.length ? `<span class="lbl-text">Recent changes</span>
+    <div class="card log-list">${log.map((l) => {
+      const what = LOG_TYPES[l.type] || 'Change';
+      const sized = p0 && p0.sizes.length > 1;
+      const parts = [
+        l.note,
+        p0 && p0.colours.length > 1 && l.colour ? l.colour : '',
+        l.type === 'move' ? (l.size ? (sized ? l.size : '') : 'all sizes') : (sized ? l.size : ''),
+        logDate(l.at),
+        l.type === 'move' ? 'storage → van box' : (LOC_NAME[l.loc] || '').toLowerCase(),
+        l.byName
+      ].filter(Boolean);
+      const num = Number(l.n) || 0;
+      const nTxt = l.type === 'move' ? String(Math.abs(num)) : (num > 0 ? '+' + num : '−' + Math.abs(num));
+      return `<div class="log-row"><span class="stack-2 grow"><b>${esc(what)}</b><span class="muted small">${esc(parts.join(' · '))}</span></span>
+        <b class="${l.type === 'move' ? 'muted' : num > 0 ? 'plus' : 'minus'}">${esc(nTxt)}</b></div>`;
+    }).join('')}</div>` : '';
 
   return headHtml(isNew ? 'New product' : (d.name || 'Product')) + `<main id="main">
     ${state.authError ? `<p class="form-error" role="alert">${esc(state.authError)}</p>` : ''}
@@ -366,15 +441,47 @@ export function renderProductForm(id) {
         <label class="lbl">What it cost us (MGMT only)<input type="text" inputmode="decimal" name="cost" value="${esc(d.cost)}" placeholder="€ 9.50"></label>
       </div>
       <p class="muted small profit-line">${profitText(d.price, d.cost)}</p>
-      <span class="lbl-text">Colours · each with its own photo and stock</span>
-      ${colourBlocks}
-      <button type="button" class="btn-outline" data-action="pd-colour-add">${icons.plus()} Add colour</button>
+
+      <div class="stat-tiles">
+        <div class="stat"><span class="label"><i style="background:var(--text)"></i>Total</span><b data-tile="total">${n.total}</b></div>
+        <div class="stat"><span class="label"><i class="loc-van-bg"></i>Van box</span><b data-tile="van">${n.van}</b></div>
+        <div class="stat"><span class="label"><i class="loc-storage-bg"></i>Storage</span><b data-tile="storage">${n.storage}</b></div>
+        <div class="stat"><span class="label"><i style="background:var(--amber)"></i>Low sizes</span><b data-tile="low" class="${n.low ? 'low' : ''}">${n.low}</b></div>
+      </div>
+
+      <span class="lbl-text">Colours · tap one to edit its photo and stock</span>
+      <div class="colour-chips" role="group" aria-label="Colours">
+        ${d.colours.map((x) => `<button type="button" class="colour-chip ${x.id === c.id ? 'on' : ''}" data-action="pd-colour-pick" data-cid="${esc(x.id)}" aria-pressed="${x.id === c.id}"><i style="background:${esc(x.hex)}" aria-hidden="true"></i>${esc(x.name || 'Colour')}<span class="n ${n.byColour[x.id].total < 3 ? 'low' : ''}" data-chip-n="${esc(x.id)}">${n.byColour[x.id].total}</span></button>`).join('')}
+        <button type="button" class="colour-chip add" data-action="pd-colour-add">+ Add colour</button>
+      </div>
+      ${card}
+      ${recent}
       <label class="lbl">Warn me when a size drops to<input type="number" inputmode="numeric" name="lowAt" min="0" max="50" value="${esc(d.lowAt)}"></label>
       <button class="btn-primary" type="submit" ${state.busy ? 'disabled' : ''}>${isNew ? 'Add product' : 'Save'}</button>
       ${isNew ? '' : `<button type="button" class="btn-outline danger" data-action="pd-delete">${icons.close(16)} Delete product</button>`}
     </form>
   </main>`;
 }
+
+// Totals for the edit screen (from the draft, before saving)
+export function pdNumbers(d, sizes) {
+  const out = { total: 0, van: 0, storage: 0, low: 0, byColour: {} };
+  d.colours.forEach((c) => {
+    const st = d.stock[c.id] || {};
+    const b = (out.byColour[c.id] = { total: 0, van: 0, storage: 0, sizes: [] });
+    sizes.forEach((z) => {
+      const v = Math.max(0, Number((st.van || {})[z]) || 0);
+      const s2 = Math.max(0, Number((st.storage || {})[z]) || 0);
+      b.van += v; b.storage += s2; b.total += v + s2; b.sizes.push(v + s2);
+      if (v + s2 > 0 && v + s2 < 3) out.low += 1;
+    });
+    out.van += b.van; out.storage += b.storage; out.total += b.total;
+  });
+  return out;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const logDate = (at) => (at && at.length >= 10 ? `${+at.slice(8, 10)} ${MONTHS[+at.slice(5, 7) - 1] || ''}` : '');
 
 export function profitText(price, cost) {
   const p = parseFloat(String(price).replace(',', '.'));

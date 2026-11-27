@@ -14,3 +14,5 @@
 - Merch (step 4a): `js/merch.js` (sums), `js/views/merch.js` (screens), `js/merch-actions.js` (taps/forms), `js/photo.js` (shrinks photos).
   Band subcollections: products (stock map `stock.{colourId}.{van|storage}.{size}`, changed with `increment` via `changeStock`),
   photos (`{pid}_{cid}`, base64 JPEG < 400 KB), costs (MGMT only), bundles, sales (`by` = seller), nights (key = eventId or `d-YYYY-MM-DD`).
+  stocklog (Recent changes): one entry per stock change ({pid, type, cid, colour, size, loc, n, note, at, ts, by}); sale entries use ids `{saleId}_{line}`.
+  Log entries are written in a separate quiet batch, so a sale never fails because of the log. Product edits change stock by the difference (increment), not by overwriting.

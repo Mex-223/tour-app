@@ -174,13 +174,13 @@ export const backend = {
     changed();
   },
   // ---------- Merch (mirrors the rules: MGMT edit products; members sell, move stock, count the cash) ----------
-  async saveMerch(b, name, id, data) {
+  async saveMerch(b, name, id, data, opts) {
     const memberOk = ['nights'].includes(name) && isMember(b);
     if (!isMgmt(b) && !memberOk) deny();
     if (name === 'photos' && String(data.data || '').length > 400000) deny();
     const L = mlist(b, name);
     const key = id || 'x-' + randomCode(8);
-    L[key] = clone(data);
+    L[key] = opts && opts.merge ? { ...(L[key] || {}), ...clone(data) } : clone(data);
     changed();
     return key;
   },
@@ -190,9 +190,12 @@ export const backend = {
     photoKeys.forEach((k) => delete mlist(b, 'photos')[k]);
     changed();
   },
-  async changeStock(b, moves, extra) {
+  async changeStock(b, moves, extra, opt = {}) {
     if (!isMember(b)) deny();
+    if ((opt.logs || []).some((l) => l.by !== uid())) deny();
     if (extra) extra();
+    (opt.logs || []).forEach(({ id, ...entry }) => { mlist(b, 'stocklog')[id] = clone(entry); });
+    (opt.dropLogs || []).forEach((id) => { delete mlist(b, 'stocklog')[id]; });
     const P = mlist(b, 'products');
     moves.forEach((m) => {
       const p = P[m.pid];
@@ -204,22 +207,22 @@ export const backend = {
     });
     changed();
   },
-  async recordSale(b, saleId, sale, moves) {
+  async recordSale(b, saleId, sale, moves, opt) {
     if (!isMember(b) || sale.by !== uid()) deny();
-    return this.changeStock(b, moves, () => { mlist(b, 'sales')[saleId] = clone(sale); });
+    return this.changeStock(b, moves, () => { mlist(b, 'sales')[saleId] = clone(sale); }, opt);
   },
-  async undoSale(b, saleId, moves) {
+  async undoSale(b, saleId, moves, opt) {
     const s = mlist(b, 'sales')[saleId];
     if (!s) return;
     if (s.by !== uid() && !isMgmt(b)) deny();
-    return this.changeStock(b, moves, () => { delete mlist(b, 'sales')[saleId]; });
+    return this.changeStock(b, moves, () => { delete mlist(b, 'sales')[saleId]; }, opt);
   },
-  async deleteNight(b, key, saleIds, moves) {
+  async deleteNight(b, key, saleIds, moves, opt) {
     if (!isMgmt(b)) deny();
     return this.changeStock(b, moves, () => {
       saleIds.forEach((id) => delete mlist(b, 'sales')[id]);
       delete mlist(b, 'nights')[key];
-    });
+    }, opt);
   },
   async saveNight(b, key, data) {
     if (!isMember(b)) deny();

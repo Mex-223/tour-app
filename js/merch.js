@@ -193,3 +193,43 @@ export function stockWarnings(bandId) {
 }
 
 export const canEditMerch = (bandId) => isMgmt(bandId);
+
+// ---------- Cart lines & the stock log ("Recent changes") ----------
+// The same item 3 times = one line with qty 3 (keeps the original order)
+export function cartLines(items) {
+  const out = [];
+  items.forEach((i) => {
+    const hit = out.find((l) => l.pid === i.pid && l.cid === i.cid && l.size === i.size);
+    if (hit) hit.qty += 1; else out.push({ pid: i.pid, cid: i.cid, size: i.size, name: i.name, colour: i.colour, price: i.price, qty: 1 });
+  });
+  return out;
+}
+
+export const nowLocal = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+};
+
+export const LOG_TYPES = { edit: 'Manual edit', delivery: 'Delivery', count: 'Stock count', gone: 'Damaged / given away', move: 'Moved to van box', sale: 'Sale', added: 'Added' };
+
+// Log ids for a sale: one per cart line, so an undo can remove exactly those
+export const saleLogIds = (saleId, items) => cartLines(items).map((_, k) => `${saleId}_${k}`);
+
+export function saleLogs(saleId, sale, p0) {
+  return cartLines(sale.items).map((l, k) => ({
+    id: `${saleId}_${k}`, pid: l.pid, type: 'sale', cid: l.cid, colour: l.colour || '', size: l.size, loc: sale.loc || 'van', n: -l.qty,
+    note: '', saleId, at: sale.at, ts: Date.now(), by: sale.by, byName: sale.byName, ...(p0 || {})
+  }));
+}
+
+export function productLog(bandId, pid, limit = 5) {
+  return merchOf(bandId, 'stocklog').filter((l) => l.pid === pid)
+    .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')) || (Number(b.ts) || 0) - (Number(a.ts) || 0)).slice(0, limit);
+}
+
+export function colourHex(bandId, pid, cid) {
+  const p = productById(bandId, pid);
+  const c = p && p.colours.find((x) => x.id === cid);
+  return c ? c.hex : '#7D8189';
+}

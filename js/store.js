@@ -270,7 +270,7 @@ function syncBands(ids) {
   });
 }
 
-const MERCH_LISTS = ['products', 'photos', 'costs', 'bundles', 'sales', 'nights'];
+const MERCH_LISTS = ['products', 'photos', 'costs', 'bundles', 'sales', 'nights', 'stocklog'];
 export const merchOf = (bandId, name) => ((state.merch[bandId] || {})[name]) || [];
 
 function changed() {

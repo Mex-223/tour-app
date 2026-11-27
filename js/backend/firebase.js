@@ -150,9 +150,9 @@ export const backend = {
   // ---------- Merch ----------
   // Stock lives in the product: stock.{colourId}.{van|storage}.{size} = count.
   // Sales and moves change it with "increment", so two phones selling at once never overwrite each other.
-  async saveMerch(bandId, name, id, data) {
+  async saveMerch(bandId, name, id, data, opts) {
     const key = id || newId();
-    w(() => setDoc(sub(bandId, name, key), data));
+    w(() => (opts && opts.merge ? setDoc(sub(bandId, name, key), data, { merge: true }) : setDoc(sub(bandId, name, key), data)));
     return key;
   },
   async deleteProduct(bandId, pid, photoKeys) {
@@ -165,7 +165,11 @@ export const backend = {
     });
   },
   // moves: [{ pid, cid, loc, size, n }] (n negative = taken out)
-  async changeStock(bandId, moves, extra) {
+  // opt.logs: stock-log entries to add ({ id, ...entry }); opt.dropLogs: stock-log ids to remove.
+  // The log is saved separately and quietly: if it fails (e.g. old security rules), the sale or stock change still goes through.
+  async changeStock(bandId, moves, extra, opt = {}) {
+    const logs = opt.logs || [];
+    const drop = opt.dropLogs || [];
     w(() => {
       const batch = writeBatch(db);
       if (extra) extra(batch, (name, id) => sub(bandId, name, id));
@@ -186,18 +190,29 @@ export const backend = {
       });
       return batch.commit();
     });
+    const ops = [...logs.map((l) => ['set', l]), ...drop.map((id) => ['del', id])];
+    for (let i = 0; i < ops.length; i += 400) {
+      const part = ops.slice(i, i + 400);
+      withRetry(() => {
+        const b2 = writeBatch(db);
+        part.forEach(([op, x]) => {
+          if (op === 'set') { const { id, ...entry } = x; b2.set(sub(bandId, 'stocklog', id), entry); } else b2.delete(sub(bandId, 'stocklog', x));
+        });
+        return b2.commit();
+      }).catch(() => {});
+    }
   },
-  async recordSale(bandId, saleId, sale, moves) {
-    return this.changeStock(bandId, moves, (batch, ref) => batch.set(ref('sales', saleId), { ...sale, createdAt: serverTimestamp() }));
+  async recordSale(bandId, saleId, sale, moves, opt) {
+    return this.changeStock(bandId, moves, (batch, ref) => batch.set(ref('sales', saleId), { ...sale, createdAt: serverTimestamp() }), opt);
   },
-  async undoSale(bandId, saleId, moves) {
-    return this.changeStock(bandId, moves, (batch, ref) => batch.delete(ref('sales', saleId)));
+  async undoSale(bandId, saleId, moves, opt) {
+    return this.changeStock(bandId, moves, (batch, ref) => batch.delete(ref('sales', saleId)), opt);
   },
-  async deleteNight(bandId, key, saleIds, moves) {
+  async deleteNight(bandId, key, saleIds, moves, opt) {
     return this.changeStock(bandId, moves, (batch, ref) => {
       saleIds.forEach((id) => batch.delete(ref('sales', id)));
       batch.delete(ref('nights', key));
-    });
+    }, opt);
   },
   async saveNight(bandId, key, data) {
     w(() => setDoc(sub(bandId, 'nights', key), { ...data, updatedAt: serverTimestamp() }, { merge: true }));

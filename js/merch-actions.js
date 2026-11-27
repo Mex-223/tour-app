@@ -3,10 +3,10 @@ import { state, me, bandById } from './store.js';
 import {
   merchBand, products, productById, parseEur, parseSizes, bundleDiscount, refillHints, salesOf, SIZE_PRESETS, COLOURS
 } from './merch.js';
-import { cartFor, currentNight, newColourId, diffText, nightText, profitText } from './views/merch.js';
+import { cartFor, currentNight, newColourId, diffText, nightText, profitText, pdNumbers } from './views/merch.js';
 import { nightSales, summary, nightDoc } from './merch.js';
 import { shrinkPhoto } from './photo.js';
-import { eur, count, KINDS, KIND_NAME, nightTitle, nightKeyOf, LOC_NAME } from './merch.js';
+import { eur, count, KINDS, KIND_NAME, nightTitle, nightKeyOf, LOC_NAME, cartLines, nowLocal, saleLogs, saleLogIds } from './merch.js';
 import { saveCsv, parseCsv, fileDate, slug } from './csv.js';
 import { isMgmt } from './store.js';
 
@@ -25,6 +25,8 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
     d.price = get('price', d.price);
     d.cost = get('cost', d.cost);
     d.lowAt = get('lowAt', d.lowAt);
+    d.logType = get('logType', d.logType || 'edit');
+    d.logNote = get('logNote', d.logNote || '');
     const sizes = d.renderedSizes || parseSizes(d.sizesText);
     d.colours.forEach((c) => {
       c.name = get(`c_name_${c.id}`, c.name);
@@ -42,20 +44,42 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
   }
   const pdForm = () => document.querySelector('form[data-form="product"]');
 
+  // Update the numbers on the edit screen (tiles, colour chips, Σ) without redrawing it
+  function refreshPd() {
+    const form = pdForm();
+    const d = collectPd(form);
+    if (!d || !form) return;
+    const sizes = d.renderedSizes || parseSizes(d.sizesText);
+    const n = pdNumbers(d, sizes);
+    const set = (sel, v, cls) => { const el = form.querySelector(sel); if (el) { el.textContent = v; if (cls !== undefined) el.className = cls; } };
+    set('[data-tile=total]', n.total); set('[data-tile=van]', n.van); set('[data-tile=storage]', n.storage); set('[data-tile=low]', n.low, n.low ? 'low' : '');
+    d.colours.forEach((c) => set(`[data-chip-n="${c.id}"]`, n.byColour[c.id].total, n.byColour[c.id].total < 3 ? 'n low' : 'n'));
+    const b = n.byColour[d.sel];
+    if (b) {
+      set('[data-sel-total]', b.total); set('[data-sel-storage]', b.storage);
+      b.sizes.forEach((t, zi) => set(`[data-sum="${zi}"]`, t, 'sum-cell ' + (t <= 0 ? 'out' : t < 3 ? 'low' : '')));
+    }
+  }
+
   // ---------- Taps ----------
   Object.assign(actions, {
-    'merch-band': (el) => { state.merchBand = el.dataset.band; state.cart = null; state.pick = null; },
+    'merch-band': (el) => { state.merchBand = el.dataset.band; state.cart = null; state.pick = null; state.sold = null; },
     'stock-loc': (el) => { state.stockLoc = el.dataset.loc; },
     'sell-loc': (el) => { state.sellLoc = el.dataset.loc; },
-    'sell-pay': (el) => { state.sellPay = el.dataset.pay; },
+    'sell-pay': (el) => { state.sellPay = el.dataset.pay; state.sellGiven = null; },
+    'sell-given': (el) => { state.sellGiven = el.dataset.v === 'exact' ? 'exact' : Number(el.dataset.v); },
     'sell-tap': (el) => {
       const bandId = merchBand();
       const p = productById(bandId, el.dataset.pid);
       if (!p) return 'none';
-      if (p.sizes.length > 1) { state.pick = { pid: p.id, cid: el.dataset.cid }; return undefined; }
-      addToCart(bandId, p, el.dataset.cid, p.sizes[0]);
+      // One colour and one size (e.g. vinyl): straight into the cart
+      if (p.colours.length === 1 && p.sizes.length === 1) { addToCart(bandId, p, p.colours[0].id, p.sizes[0]); return undefined; }
+      const loc = state.sellLoc || 'van';
+      const withStock = p.colours.find((c) => p.sizes.some((z) => count(p, c.id, loc, z) > 0));
+      state.pick = { pid: p.id, cid: (withStock || p.colours[0]).id };
       return undefined;
     },
+    'pick-colour': (el) => { if (state.pick) state.pick.cid = el.dataset.cid; },
     'pick-size': (el) => {
       const bandId = merchBand();
       const p = state.pick && productById(bandId, state.pick.pid);
@@ -63,19 +87,31 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       state.pick = null;
     },
     'pick-close': () => { state.pick = null; },
+    'cart-inc': (el) => {
+      const bandId = merchBand();
+      const p = productById(bandId, el.dataset.pid);
+      if (p) addToCart(bandId, p, el.dataset.cid, el.dataset.size);
+    },
+    'cart-dec': (el) => {
+      const c = cartFor(merchBand());
+      for (let i = c.items.length - 1; i >= 0; i -= 1) {
+        const it = c.items[i];
+        if (it.pid === el.dataset.pid && it.cid === el.dataset.cid && it.size === el.dataset.size) { c.items.splice(i, 1); break; }
+      }
+      if (!c.items.length) state.sellGiven = null;
+    },
+    'cart-clear': () => { cartFor(merchBand()).items = []; state.sellGiven = null; },
     'cart-remove': (el) => { const c = cartFor(merchBand()); c.items.splice(Number(el.dataset.i), 1); },
     charge: () => {
       const bandId = merchBand();
       const cart = cartFor(bandId);
       if (!cart.items.length) return 'none';
       const { discount } = bundleDiscount(bandId, cart.items);
-      const total = Math.round((cart.items.reduce((s, i) => s + i.price, 0) - discount) * 100) / 100;
+      const total = Math.round((cart.items.reduce((t, i) => t + i.price, 0) - discount) * 100) / 100;
       const key = currentNight(bandId);
       const loc = state.sellLoc || 'van';
       const pay = state.sellPay || 'card';
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const local = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      const local = nowLocal();
       const ev = key.startsWith('d-') ? null : key;
       const sale = {
         at: local, date: key.startsWith('d-') ? key.slice(2) : local.slice(0, 10), eventId: ev, night: key,
@@ -83,17 +119,30 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       };
       const moves = cart.items.map((i) => ({ pid: i.pid, cid: i.cid, loc, size: i.size, n: -1 }));
       const id = backend().newId();
+      state.sold = { band: bandId, saleId: id, total, items: sale.items.map((i) => ({ ...i })) };
       state.cart = { band: bandId, items: [] };
-      state.lastSaleText = `Sale saved: ${eur(total)} · ${pay}. Tap a product for the next one.`;
-      backend().recordSale(bandId, id, sale, moves).catch((err) => toast(err.message || 'Could not save the sale.'));
-      toast(`Sold · ${eur(total)} ${pay}`);
+      state.sellGiven = null;
+      backend().recordSale(bandId, id, sale, moves, { logs: saleLogs(id, sale) }).catch((err) => toast(err.message || 'Could not save the sale.'));
+      return undefined;
+    },
+    // The green "Sold" bar: Undo takes the sale back and puts the items back into the cart
+    'undo-last': () => {
+      const bandId = merchBand();
+      const sold = state.sold;
+      if (!sold || sold.band !== bandId) return 'none';
+      const s = salesOf(bandId).find((x) => x.id === sold.saleId);
+      state.sold = null;
+      state.cart = { band: bandId, items: sold.items.map((i) => ({ ...i })) };
+      if (s) backend().undoSale(bandId, s.id, backMoves(bandId, [s]), { dropLogs: saleLogIds(s.id, s.items) }).catch((err) => toast(err.message || 'Could not undo.'));
+      toast('Sale undone. The items are back in the cart.');
       return undefined;
     },
     'undo-sale': (el) => {
       const bandId = merchBand();
       const s = salesOf(bandId).find((x) => x.id === el.dataset.id);
       if (!s || !confirm(`Undo this sale (${eur(s.total)})? The items go back into stock.`)) return 'none';
-      run(async () => { await backend().undoSale(bandId, s.id, backMoves(bandId, [s])); toast('Sale undone. The items are back in stock.'); });
+      if (state.sold && state.sold.saleId === s.id) state.sold = null;
+      run(async () => { await backend().undoSale(bandId, s.id, backMoves(bandId, [s]), { dropLogs: saleLogIds(s.id, s.items) }); toast('Sale undone. The items are back in stock.'); });
       return 'none';
     },
     'sale-pay': (el) => {
@@ -115,7 +164,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
         : 'Delete this night and its cash count?';
       if (!confirm(msg)) return 'none';
       run(async () => {
-        await backend().deleteNight(bandId, key, list.map((x) => x.id), backMoves(bandId, list));
+        await backend().deleteNight(bandId, key, list.map((x) => x.id), backMoves(bandId, list), { dropLogs: list.flatMap((x) => saleLogIds(x.id, x.items)) });
         location.hash = '#/merch/nights';
         toast('Night deleted.');
       });
@@ -126,7 +175,13 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const { moves } = refillHints(bandId);
       if (!moves.length) return 'none';
       const list = moves.flatMap((m) => [{ pid: m.pid, cid: m.cid, loc: 'van', size: m.size, n: m.n }, { pid: m.pid, cid: m.cid, loc: 'storage', size: m.size, n: -m.n }]);
-      run(async () => { await backend().changeStock(bandId, list); toast('Stock updated: moved to the van box.'); });
+      const at = nowLocal();
+      const logs = moves.map((m) => {
+        const p = productById(bandId, m.pid);
+        const c = p && p.colours.find((x) => x.id === m.cid);
+        return { id: backend().newId(), pid: m.pid, type: 'move', cid: m.cid, colour: (c && c.name) || '', size: m.size, loc: 'van', n: m.n, note: '', at, ts: Date.now(), by: me.id, byName: me.name };
+      });
+      run(async () => { await backend().changeStock(bandId, list, null, { logs }); toast('Stock updated: moved to the van box.'); });
       return 'none';
     },
     'share-night': () => {
@@ -148,6 +203,32 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       if (!input) return 'none';
       input.value = Math.max(0, (Math.round(Number(input.value)) || 0) + Number(el.dataset.d));
       state.formDirty = true;
+      refreshPd();
+      return 'none';
+    },
+    'pd-colour-pick': (el) => {
+      const d = collectPd(pdForm());
+      if (d) d.sel = el.dataset.cid;
+      state.formDirty = false;
+    },
+    'pd-move-all': () => {
+      const d = collectPd(pdForm());
+      if (!d) return 'none';
+      const sizes = d.renderedSizes || parseSizes(d.sizesText);
+      let moved = 0;
+      sizes.forEach((z, zi) => {
+        const v = document.querySelector(`input[name="st_${d.sel}_van_${zi}"]`);
+        const st = document.querySelector(`input[name="st_${d.sel}_storage_${zi}"]`);
+        if (!v || !st) return;
+        const n = Math.max(0, Math.round(Number(st.value)) || 0);
+        moved += n;
+        v.value = (Math.round(Number(v.value)) || 0) + n;
+        st.value = 0;
+      });
+      if (!moved) { toast('Nothing in storage for this colour.'); return 'none'; }
+      state.formDirty = true;
+      refreshPd();
+      toast(`${moved} moved to the van box. Tap Save to keep it.`);
       return 'none';
     },
     'pd-cancel': () => { state.pd = null; return 'nav'; },
@@ -155,7 +236,9 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const d = collectPd(pdForm());
       const used = d.colours.map((c) => c.hex);
       const [name, hex] = COLOURS.find(([, h]) => !used.includes(h)) || COLOURS[0];
-      d.colours.push({ id: newColourId(), name, hex, photo: null, photoChanged: false });
+      const nc = { id: newColourId(), name, hex, photo: null, photoChanged: false };
+      d.colours.push(nc);
+      d.sel = nc.id;
       state.formDirty = false;
     },
     'pd-colour-remove': (el) => {
@@ -200,7 +283,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
   function addToCart(bandId, p, cid, size) {
     const c = p.colours.find((x) => x.id === cid) || p.colours[0];
     cartFor(bandId).items.push({ pid: p.id, cid: c.id, size, name: p.name, colour: p.colours.length > 1 ? (c.name || '') : '', price: p.price });
-    state.lastSaleText = '';
+    state.sold = null;
   }
 
   function saveNight(form, mode) {
@@ -387,22 +470,49 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const sizes = parseSizes(d.sizesText);
       if (!d.name.trim()) { state.authError = 'Please give the product a name.'; state.formDirty = false; render(); return; }
       if (!sizes.length) { state.authError = 'Please add at least one size (or "One size").'; state.formDirty = false; render(); return; }
-      const stock = {};
-      d.colours.forEach((c) => {
-        stock[c.id] = {};
-        ['van', 'storage'].forEach((l) => {
-          stock[c.id][l] = {};
-          sizes.forEach((z) => { stock[c.id][l][z] = Math.max(0, Number(((d.stock[c.id] || {})[l] || {})[z]) || 0); });
-        });
-      });
-      const data = {
+      const val = (src, cid, l, z) => Math.max(0, Number((((src || {})[cid] || {})[l] || {})[z]) || 0);
+      const base = {
         name: d.name.trim().slice(0, 40), kind: d.kind, price: parseEur(d.price), sizes,
         colours: d.colours.map((c) => ({ id: c.id, name: String(c.name || '').trim().slice(0, 24), hex: c.hex })),
-        stock, lowAt: Math.max(0, Math.min(50, Math.round(Number(d.lowAt)) || 0)), order: d.order || Date.now()
+        lowAt: Math.max(0, Math.min(50, Math.round(Number(d.lowAt)) || 0)), order: d.order || Date.now()
       };
+      const at = nowLocal();
+      const note = String(d.logNote || '').trim().slice(0, 60);
+      const entry = (pid, c, type, size, loc, n) => ({ id: backend().newId(), pid, type, cid: c.id, colour: String(c.name || '').trim(), size, loc, n, note: type === 'move' ? '' : note, at, ts: Date.now(), by: me.id, byName: me.name });
       run(async () => {
         const b = backend();
-        const pid = await b.saveMerch(bandId, 'products', d.id, data);
+        let pid = d.id;
+        if (!d.id) {
+          // New product: save it with its stock; log what it starts with
+          const stock = {};
+          d.colours.forEach((c) => { stock[c.id] = {}; ['van', 'storage'].forEach((l) => { stock[c.id][l] = {}; sizes.forEach((z) => { stock[c.id][l][z] = val(d.stock, c.id, l, z); }); }); });
+          pid = await b.saveMerch(bandId, 'products', null, { ...base, stock });
+          const logs = [];
+          d.colours.forEach((c) => ['van', 'storage'].forEach((l) => {
+            const n = sizes.reduce((t, z) => t + val(d.stock, c.id, l, z), 0);
+            if (n) logs.push(entry(pid, c, d.logType === 'delivery' ? 'delivery' : 'added', '', l, n));
+          }));
+          if (logs.length) await b.changeStock(bandId, [], null, { logs });
+        } else {
+          // Existing product: save the details, then change the stock by the difference
+          // (so a sale made on another phone meanwhile isn't overwritten)
+          await b.saveMerch(bandId, 'products', d.id, base, { merge: true });
+          const moves = []; const logs = [];
+          d.colours.forEach((c) => {
+            let movedTotal = 0; const movedSizes = [];
+            sizes.forEach((z) => {
+              let dv = val(d.stock, c.id, 'van', z) - val(d.orig, c.id, 'van', z);
+              let ds = val(d.stock, c.id, 'storage', z) - val(d.orig, c.id, 'storage', z);
+              if (dv) moves.push({ pid, cid: c.id, loc: 'van', size: z, n: dv });
+              if (ds) moves.push({ pid, cid: c.id, loc: 'storage', size: z, n: ds });
+              if (dv > 0 && ds < 0) { const m = Math.min(dv, -ds); movedTotal += m; movedSizes.push(z); dv -= m; ds += m; }
+              if (dv) logs.push(entry(pid, c, d.logType || 'edit', z, 'van', dv));
+              if (ds) logs.push(entry(pid, c, d.logType || 'edit', z, 'storage', ds));
+            });
+            if (movedTotal) logs.push(entry(pid, c, 'move', movedSizes.length === 1 && sizes.length > 1 ? movedSizes[0] : (sizes.length === 1 ? sizes[0] : ''), 'van', movedTotal));
+          });
+          if (moves.length || logs.length) await b.changeStock(bandId, moves, null, { logs });
+        }
         const cost = String(d.cost).trim() === '' ? null : parseEur(d.cost);
         await b.saveMerch(bandId, 'costs', pid, { cost });
         for (const c of d.colours) {
@@ -460,7 +570,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const d = collectPd(t.form);
       if (t.name === 'kind' && before && (before.sizes === SIZE_PRESETS[before.kind] || !before.sizes.trim())) d.sizesText = SIZE_PRESETS[d.kind] || 'One size';
       state.formDirty = false;
-      render();
+      setTimeout(render, 0); // not while the browser is still busy with the field
     }
   });
 
@@ -477,6 +587,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       return;
     }
     const pf = ev.target.closest && ev.target.closest('form[data-form="product"]');
+    if (pf && /^st_/.test(ev.target.name || '')) { refreshPd(); return; }
     if (pf && (ev.target.name === 'price' || ev.target.name === 'cost')) {
       const f = new FormData(pf);
       const el = pf.querySelector('.profit-line');

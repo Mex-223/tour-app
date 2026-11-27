@@ -137,6 +137,12 @@ service cloud.firestore {
         allow update: if isMgmt(bandId);
         allow delete: if isMgmt(bandId) || (isMember(bandId) && resource.data.by == request.auth.uid);
       }
+      // Stock log ("Recent changes"): who changed which stock, when. Saved together with each change.
+      match /stocklog/{entryId} {
+        allow read: if isMember(bandId);
+        allow create: if isMember(bandId) && request.resource.data.by == request.auth.uid;
+        allow delete: if isMgmt(bandId) || (isMember(bandId) && resource.data.by == request.auth.uid);
+      }
       // Show nights at the merch table (cash box float, counted cash, closed).
       match /nights/{nightId} {
         allow read, write: if isMember(bandId);
