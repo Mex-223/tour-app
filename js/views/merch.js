@@ -55,23 +55,66 @@ export function renderStock() {
   if (!bandId) return head('money', null, 'Merch') + '<main id="main"><div class="empty">Join or create a band first.</div></main>';
   const mgmt = isMgmt(bandId);
   const loc = state.stockLoc || 'all';
-  const ls = lines(bandId);
-  const total = ls.reduce((s, l) => s + totalOf(l.p, l.c.id, loc), 0);
-  const warn = stockWarnings(bandId);
-  const cards = ls.map(({ p, c, label }) => {
-    const chips = p.sizes.map((z) => {
-      const n = stockAt(p, c.id, z, loc);
-      const cls = n === 0 ? 'out' : n <= p.lowAt ? 'low' : '';
-      return `<span class="size-chip ${cls}">${p.sizes.length > 1 ? `<b>${esc(z)}</b> ` : ''}${n === 0 ? 'sold out' : n}</span>`;
-    }).join('');
-    const inner = `${pic(bandId, p, c)}
-      <span class="prod-info">
-        <span class="prod-name">${esc(p.name || 'Product')}</span>
-        <span class="muted small">${esc([p.colours.length > 1 || c.name ? c.name : '', eur(p.price)].filter(Boolean).join(' · '))}</span>
-        <span class="size-chips">${chips}</span>
-      </span>`;
-    return mgmt ? `<a class="prod-card" href="#/merch/product/${esc(p.id)}">${inner}</a>` : `<div class="prod-card">${inner}</div>`;
+  const ps = products(bandId);
+  const pTotal = (p, where) => p.colours.reduce((t, c) => t + totalOf(p, c.id, where), 0);
+  const total = ps.reduce((t, p) => t + pTotal(p, loc), 0);
+  const live = ps.filter((p) => pTotal(p, 'all') > 0);
+  const gone = ps.filter((p) => pTotal(p, 'all') === 0);
+  const tone = (n, p) => (n <= 0 ? 'out' : n <= p.lowAt ? 'low' : '');
+  const open = state.stockOpen || {};
+  const sizeChips = (p, c) => p.sizes.map((z) => {
+    const n = stockAt(p, c.id, z, loc);
+    return `<span class="size-chip ${tone(n, p)}">${p.sizes.length > 1 ? `<b>${esc(z)}</b> ` : ''}${n === 0 ? 'sold out' : n}</span>`;
   }).join('');
+
+  // Low-stock line: one short note per product instead of every single size
+  const warnParts = live.map((p) => {
+    let low = 0; let out = 0;
+    p.colours.forEach((c) => p.sizes.forEach((z) => { const n = stockAt(p, c.id, z, 'all'); if (n === 0) out += 1; else if (n <= p.lowAt) low += 1; }));
+    const bits = [low ? `${low} low` : '', out ? `${out} sold out` : ''].filter(Boolean);
+    return bits.length ? `${p.name}: ${bits.join(', ')}` : '';
+  }).filter(Boolean);
+
+  const card = (p) => {
+    const n = pTotal(p, loc);
+    const isOpen = open.pid === p.id;
+    const sel = p.colours.find((c) => c.id === open.cid) || null;
+    const withPhoto = p.colours.find((c) => photo(bandId, p.id, c.id)) || [...p.colours].sort((x, y) => totalOf(p, y.id, 'all') - totalOf(p, x.id, 'all'))[0];
+    const sub = p.colours.length > 1 ? `${eur(p.price)} · ${p.colours.length} colours` : [eur(p.price), p.colours[0].name].filter(Boolean).join(' · ');
+    const one = p.colours.length === 1;
+    const detail = !isOpen ? '' : `<div class="stock-detail">
+        ${one ? `<div class="size-chips">${sizeChips(p, p.colours[0])}</div>` : `
+        <div class="colour-chips" role="group" aria-label="Colours of ${esc(p.name)}">${p.colours.map((c) => {
+          const k = totalOf(p, c.id, loc);
+          return `<button type="button" class="colour-chip ${sel && sel.id === c.id ? 'on' : ''}" data-action="stock-colour" data-pid="${esc(p.id)}" data-cid="${esc(c.id)}" aria-pressed="${!!(sel && sel.id === c.id)}"><i style="background:${esc(c.hex)}" aria-hidden="true"></i><span class="cname">${esc(c.name || 'Colour')}</span><span class="n ${k === 0 ? 'zero' : ''}">${k}</span></button>`;
+        }).join('')}</div>
+        ${sel ? `<div class="size-chips">${sizeChips(p, sel)}</div>` : '<p class="muted small">Tap a colour to see its sizes.</p>'}`}
+        ${mgmt ? `<a class="btn-small edit-link" href="#/merch/product/${esc(p.id)}">Edit product</a>` : ''}
+      </div>`;
+    return `<div class="prod-card group ${isOpen ? 'open' : ''}">
+      <button type="button" class="prod-head" data-action="stock-open" data-pid="${esc(p.id)}" aria-expanded="${isOpen}">
+        ${pic(bandId, p, withPhoto)}
+        <span class="prod-info">
+          <span class="prod-name">${esc(p.name || 'Product')}</span>
+          <span class="muted small">${esc(sub)}</span>
+          ${one ? '' : `<span class="dots" aria-hidden="true">${p.colours.map((c) => `<i style="background:${esc(c.hex)}"></i>`).join('')}</span>`}
+        </span>
+        <span class="prod-total"><b>${n}</b><span class="muted small">${loc === 'all' ? 'total' : LOC_NAME[loc].toLowerCase()}</span></span>
+      </button>
+      ${detail}
+    </div>`;
+  };
+  const cards = live.map(card).join('');
+  const soldOpen = !!state.soldOpen;
+  const soldHtml = gone.length ? `<button type="button" class="sold-head" data-action="sold-toggle" aria-expanded="${soldOpen}">
+      <span class="sold-label">SOLD OUT</span><span class="sold-count">${gone.length}</span>
+      <span class="grow muted small">${esc(gone.map((p) => p.name).join(', '))}</span>${icons.chevronRight(18)}</button>
+    ${soldOpen ? `<div class="prod-grid">${gone.map((p) => `<div class="prod-card gone">
+        ${pic(bandId, p, p.colours[0])}
+        <span class="prod-info"><span class="prod-name">${esc(p.name)}</span><span class="muted small">${esc(p.colours.length > 1 ? `${eur(p.price)} · ${p.colours.length} colours` : eur(p.price))} · every size gone</span></span>
+        ${mgmt ? `<a class="btn-small" href="#/merch/product/${esc(p.id)}">+ Restock</a>` : ''}
+      </div>`).join('')}</div>` : ''}` : '';
+
   const bl = bundles(bandId);
   const names = Object.fromEntries(products(bandId).map((p) => [p.id, p]));
   const bundleRows = bl.map((b) => {
@@ -87,8 +130,8 @@ export function renderStock() {
       <div class="seg" role="group" aria-label="Where">${[['all', 'All'], ...LOCS].map(([k, l]) => `<button type="button" class="${loc === k ? 'on' : ''}" data-action="stock-loc" data-loc="${k}" aria-pressed="${loc === k}">${l}</button>`).join('')}</div>
       <span class="muted small grow right">${total} items</span>
     </div>
-    ${warn.length ? `<div class="warning small-warning merch-warn">${icons.warn(16)}<span>${esc(warn.slice(0, 3).map((w) => w.text).join(' · '))}${warn.length > 3 ? ` · +${warn.length - 3} more` : ''}</span></div>` : ''}
-    ${ls.length ? `<div class="prod-grid">${cards}</div>` : `<div class="empty">${mgmt ? 'No merch yet. Add your first product: take a photo, set the sizes and how many you have.' : 'No merch yet. MGMT can add products here.'}</div>`}
+    ${warnParts.length ? `<div class="warning small-warning merch-warn">${icons.warn(16)}<span><b>Low stock</b> · ${esc(warnParts.slice(0, 3).join(' · '))}${warnParts.length > 3 ? ` · +${warnParts.length - 3} more` : ''}</span></div>` : ''}
+    ${ps.length ? `<div class="prod-grid">${cards}</div>${soldHtml}` : `<div class="empty">${mgmt ? 'No merch yet. Add your first product: take a photo, set the sizes and how many you have.' : 'No merch yet. MGMT can add products here.'}</div>`}
     ${mgmt ? `<a class="btn-outline" href="#/merch/product/new">${icons.plus()} Add product</a>` : ''}
     <h2 class="section-h">Bundles</h2>
     ${bundleRows || `<div class="empty">${mgmt ? 'e.g. shirt + vinyl for €50. Applied automatically when both are in the cart.' : 'No bundle deals yet.'}</div>`}

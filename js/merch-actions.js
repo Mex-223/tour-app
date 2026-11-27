@@ -65,6 +65,15 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
   Object.assign(actions, {
     'merch-band': (el) => { state.merchBand = el.dataset.band; state.cart = null; state.pick = null; state.sold = null; },
     'stock-loc': (el) => { state.stockLoc = el.dataset.loc; },
+    'stock-open': (el) => {
+      const o = state.stockOpen || {};
+      state.stockOpen = o.pid === el.dataset.pid ? {} : { pid: el.dataset.pid, cid: null };
+    },
+    'stock-colour': (el) => {
+      const o = state.stockOpen || {};
+      state.stockOpen = { pid: el.dataset.pid, cid: o.cid === el.dataset.cid ? null : el.dataset.cid };
+    },
+    'sold-toggle': () => { state.soldOpen = !state.soldOpen; },
     'sell-loc': (el) => { state.sellLoc = el.dataset.loc; },
     'sell-pay': (el) => { state.sellPay = el.dataset.pay; state.sellGiven = null; },
     'sell-given': (el) => { state.sellGiven = el.dataset.v === 'exact' ? 'exact' : Number(el.dataset.v); },

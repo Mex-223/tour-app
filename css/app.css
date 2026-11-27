@@ -582,3 +582,26 @@ a.prod-card:hover { border-color: #3A3F46; }
 .colour-chip i { width: 22px; height: 22px; }
 .colour-chip .n { font-size: 13px; }
 .colour-chip.add { white-space: nowrap; font-size: 13px; padding: 0 6px; }
+
+/* ---------- Merch 1.10: stock list, one card per product ---------- */
+.prod-grid { align-items: start; }
+.prod-card.group { flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; }
+.prod-card.group.open { border-color: #4FC3B0; }
+.prod-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px 10px 10px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.prod-total { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.prod-total b { font-family: var(--display); font-size: 24px; line-height: 1.1; }
+.stock-detail { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-top: 1px solid var(--line); }
+.stock-detail .size-chips { margin-top: 0; }
+.colour-chip .n.zero { color: var(--red-text); }
+.edit-link { align-self: flex-end; }
+.sold-head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; margin-top: 6px; padding: 0 4px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.sold-head .grow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sold-head svg { flex: none; color: var(--muted); transition: transform 0.15s; }
+.sold-head[aria-expanded="true"] svg { transform: rotate(90deg); }
+.sold-label { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; color: var(--red-text); }
+.sold-count { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 99px; background: var(--red-bg); color: var(--red-text); font-size: 12px; font-weight: 700; }
+.prod-card.gone { border-style: dashed; background: #16171A; }
+.prod-card.gone .pic { opacity: 0.4; filter: grayscale(1); }
+.prod-card.gone .prod-name { color: var(--muted); }
+.stock-detail .colour-chips { display: flex; flex-wrap: wrap; }
+.stock-detail .colour-chip { min-height: 42px; }
