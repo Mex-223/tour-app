@@ -220,7 +220,7 @@ function pickSheet(bandId, loc, inCart) {
       <button type="button" class="icon-btn" data-action="pick-close" aria-label="Close">${icons.close(20)}</button></div>
     ${p.colours.length > 1 ? `<div class="colour-chips" role="group" aria-label="Colour">${p.colours.map((x) => {
       const n = p.sizes.reduce((t, z) => t + Math.max(0, left(x.id, z)), 0);
-      return `<button type="button" class="colour-chip ${x.id === c.id ? 'on' : ''}" data-action="pick-colour" data-cid="${esc(x.id)}" aria-pressed="${x.id === c.id}"><i style="background:${esc(x.hex)}" aria-hidden="true"></i>${esc(x.name || 'Colour')}<span class="${n < 3 ? 'n low' : 'n'}">${n}</span></button>`;
+      return `<button type="button" class="colour-chip ${x.id === c.id ? 'on' : ''}" data-action="pick-colour" data-cid="${esc(x.id)}" aria-pressed="${x.id === c.id}"><i style="background:${esc(x.hex)}" aria-hidden="true"></i><span class="cname">${esc(x.name || 'Colour')}</span><span class="${n < 3 ? 'n low' : 'n'}">${n}</span></button>`;
     }).join('')}</div>` : ''}
     <div class="size-pick">${p.sizes.map((z) => {
       const n = left(c.id, z);
@@ -451,8 +451,8 @@ export function renderProductForm(id) {
 
       <span class="lbl-text">Colours · tap one to edit its photo and stock</span>
       <div class="colour-chips" role="group" aria-label="Colours">
-        ${d.colours.map((x) => `<button type="button" class="colour-chip ${x.id === c.id ? 'on' : ''}" data-action="pd-colour-pick" data-cid="${esc(x.id)}" aria-pressed="${x.id === c.id}"><i style="background:${esc(x.hex)}" aria-hidden="true"></i>${esc(x.name || 'Colour')}<span class="n ${n.byColour[x.id].total < 3 ? 'low' : ''}" data-chip-n="${esc(x.id)}">${n.byColour[x.id].total}</span></button>`).join('')}
-        <button type="button" class="colour-chip add" data-action="pd-colour-add">+ Add colour</button>
+        ${d.colours.map((x) => `<button type="button" class="colour-chip ${x.id === c.id ? 'on' : ''}" data-action="pd-colour-pick" data-cid="${esc(x.id)}" aria-pressed="${x.id === c.id}"><i style="background:${esc(x.hex)}" aria-hidden="true"></i><span class="cname">${esc(x.name || 'Colour')}</span><span class="n ${n.byColour[x.id].total < 3 ? 'low' : ''}" data-chip-n="${esc(x.id)}">${n.byColour[x.id].total}</span></button>`).join('')}
+        <button type="button" class="colour-chip add" data-action="pd-colour-add">+ Colour</button>
       </div>
       ${card}
       ${recent}

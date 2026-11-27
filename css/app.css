@@ -567,3 +567,18 @@ a.prod-card:hover { border-color: #3A3F46; }
 @media (max-width: 899px) {
   .sell-layout .cart { max-height: 62vh; overflow-y: auto; }
 }
+
+/* Colour picker as pills in a 3-column grid (Bestand design) */
+.colour-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.colour-chip { justify-content: flex-start; min-height: 48px; padding: 0 12px 0 8px; gap: 10px; border: 2px solid transparent; background: var(--surface-2); font-size: 15px; font-weight: 700; min-width: 0; }
+.colour-chip i { width: 26px; height: 26px; border: 1px solid #5A5E66; }
+.colour-chip .n, .colour-chip .n.low { color: var(--faint); font-weight: 500; margin-left: auto; }
+.colour-chip.on { border-color: #4FC3B0; background: var(--surface-2); }
+.colour-chip.add { justify-content: center; border: 2px dashed var(--line); background: transparent; color: var(--muted); font-weight: 600; }
+.colour-chip > :not(i):not(.n) { min-width: 0; }
+@media (max-width: 360px) { .colour-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.colour-chip .cname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colour-chip { gap: 7px; padding: 0 10px 0 7px; font-size: 14px; }
+.colour-chip i { width: 22px; height: 22px; }
+.colour-chip .n { font-size: 13px; }
+.colour-chip.add { white-space: nowrap; font-size: 13px; padding: 0 6px; }
