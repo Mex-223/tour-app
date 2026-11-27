@@ -9,8 +9,17 @@ export const KIND_NAME = Object.fromEntries(KINDS);
 export const SIZE_PRESETS = { shirt: 'S, M, L, XL', hoodie: 'S, M, L, XL', vinyl: 'LP', cd: 'CD', tote: 'One size', socks: '35–38, 39–42, 43–46', cap: 'One size', poster: 'One size', other: 'One size' };
 export const COLOURS = [
   ['Black', '#17181B'], ['White', '#EDEBE6'], ['Grey', '#7D8189'], ['Navy', '#1F2A44'], ['Red', '#B3261E'],
-  ['Green', '#2F5D3A'], ['Yellow', '#F5C542'], ['Pink', '#E46AA8'], ['Beige', '#D9CBB0'], ['Blue', '#3B6FD8']
+  ['Green', '#2F5D3A'], ['Yellow', '#F5C542'], ['Pink', '#E46AA8'], ['Beige', '#D9CBB0'], ['Blue', '#3B6FD8'],
+  ['Burgundy', '#8E1B2C'], ['Mint', '#A8DCC8'], ['Teal', '#14A3A8'], ['Brown', '#7A5236']
 ];
+// A colour named like one of these always gets its dot from this list (also German names)
+const COLOUR_ALIASES = { rot: 'Red', weinrot: 'Burgundy', bordeaux: 'Burgundy', minze: 'Mint', mintgrün: 'Mint', türkis: 'Teal', tuerkis: 'Teal', petrol: 'Teal', braun: 'Brown', schwarz: 'Black', weiß: 'White', weiss: 'White', grau: 'Grey', grün: 'Green', gelb: 'Yellow', rosa: 'Pink', blau: 'Blue' };
+const HEX_BY_NAME = Object.fromEntries(COLOURS.map(([n, h]) => [n.toLowerCase(), h]));
+export function hexFor(name, fallback) {
+  const k = String(name || '').trim().toLowerCase();
+  const alias = COLOUR_ALIASES[k];
+  return HEX_BY_NAME[k] || (alias && HEX_BY_NAME[alias.toLowerCase()]) || fallback;
+}
 
 export const eur = (n) => {
   const v = Math.round((Number(n) || 0) * 100) / 100;
@@ -37,7 +46,7 @@ export function products(bandId) {
     ...p,
     band: bandId,
     sizes: Array.isArray(p.sizes) && p.sizes.length ? p.sizes : ['One size'],
-    colours: Array.isArray(p.colours) && p.colours.length ? p.colours : [{ id: 'c1', name: '', hex: '#7D8189' }],
+    colours: Array.isArray(p.colours) && p.colours.length ? p.colours.map((c) => ({ ...c, hex: hexFor(c.name, c.hex) })) : [{ id: 'c1', name: '', hex: '#7D8189' }],
     stock: p.stock || {},
     price: Number(p.price) || 0,
     lowAt: Number.isFinite(Number(p.lowAt)) ? Number(p.lowAt) : 2,
