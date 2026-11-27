@@ -172,7 +172,7 @@ export function renderSell() {
   const goneCount = allPs.filter(isGone).length;
   const ps = allPs.filter((p) => (loc === 'sold' ? isGone(p) : !isGone(p)));
 
-  const opts = [...shows.map((e) => [e.id, `${fmtDay(e.date)} · ${e.place || e.title || 'Show'}`]), ['d-' + today, `${fmtDay(today)} · no show (other sale)`]];
+  const opts = [...shows.map((e) => [e.id, `${fmtDay(e.date)} · ${e.place || e.title || 'Show'}`]), ['d-' + today, `${fmtDay(today)} · no show (other sale)`], ['p-' + today, `${fmtDay(today)} · pre-orders (no show)`]];
   if (!opts.some(([k]) => k === key)) opts.unshift([key, nightTitle(bandId, key).place]);
 
   // One card per product (all colours together)
@@ -191,9 +191,12 @@ export function renderSell() {
     </button>`;
   }).join('');
 
-  const { discount, used } = bundleDiscount(bandId, cart.items);
-  const sum = Math.round((cart.items.reduce((t, i) => t + i.price, 0) - discount) * 100) / 100;
   const pay = state.sellPay || 'card';
+  const isPreorder = pay === 'preorder';
+  const bd = bundleDiscount(bandId, cart.items);
+  const used = isPreorder ? [] : bd.used;
+  const discount = isPreorder ? 0 : bd.discount;
+  const sum = Math.round((cart.items.reduce((t, i) => t + i.price, 0) - discount) * 100) / 100;
   const lines = cartLines(cart.items);
   const given = state.sellGiven;
   const givenOpts = [['exact', 'Exact'], [20, '€20'], [50, '€50'], [100, '€100']];
@@ -214,25 +217,26 @@ export function renderSell() {
       </div>`;
       }).join('')}
       ${used.map((u) => `<div class="cart-line bundle"><span class="grow">Bundle: ${esc(u.name)}</span><b>−${eur(u.off)}</b></div>`).join('')}
-      <div class="cart-total"><span class="muted">${cart.items.length} ${cart.items.length === 1 ? 'item' : 'items'}</span><b>${eur(sum)}</b></div>
-      <div class="seg pay-seg" role="group" aria-label="Payment">${[['card', 'Card'], ['cash', 'Cash']].map(([k, l]) => `<button type="button" class="${pay === k ? 'on' : ''}" data-action="sell-pay" data-pay="${k}" aria-pressed="${pay === k}">${l}</button>`).join('')}</div>
+      <div class="cart-total"><span class="muted">${cart.items.length} ${cart.items.length === 1 ? 'item' : 'items'}</span>${isPreorder ? '<span class="muted small">already paid · €0 tonight</span>' : `<b>${eur(sum)}</b>`}</div>
+      <div class="seg pay-seg" role="group" aria-label="Payment">${[['card', 'Card'], ['cash', 'Cash'], ['preorder', 'Pre-order']].map(([k, l]) => `<button type="button" class="${pay === k ? 'on' : ''}" data-action="sell-pay" data-pay="${k}" aria-pressed="${pay === k}">${l}</button>`).join('')}</div>
       ${pay === 'cash' ? `<div class="given">
         <span class="muted small">Given</span>
         <div class="given-btns">${givenOpts.map(([v, l]) => `<button type="button" class="${String(given) === String(v) ? 'on' : ''}" data-action="sell-given" data-v="${v}" aria-pressed="${String(given) === String(v)}">${l}</button>`).join('')}</div>
         ${givenEur != null ? (givenEur >= sum ? `<div class="change"><span>Change</span><b>${eur(givenEur - sum)}</b></div>` : `<div class="change short"><span>Not enough</span><b>${eur(sum - givenEur)} missing</b></div>`) : ''}
       </div>` : ''}
+      ${isPreorder ? `<label class="lbl sale-note">Name (who got it, optional)<input type="text" name="preName" maxlength="60" value="${esc(state.preName || '')}" placeholder="e.g. Anna Huber" autocomplete="off"></label>` : ''}
       <label class="lbl sale-note">Note (optional)<input type="text" name="saleNote" maxlength="120" value="${esc(state.saleNote || '')}" placeholder="e.g. swapped M for L" autocomplete="off"></label>
-      <button type="button" class="btn-primary charge-btn" data-action="charge">Charge ${eur(sum)} · ${pay === 'cash' ? 'cash' : 'card'}</button>
+      <button type="button" class="btn-primary charge-btn" data-action="charge">${isPreorder ? 'Hand out · pre-order' : `Charge ${eur(sum)} · ${pay === 'cash' ? 'cash' : 'card'}`}</button>
       <button type="button" class="link-btn clear-sale" data-action="cart-clear">Clear sale</button>
     </div>` : (sold ? '' : `<div class="empty">Tap a product to start a sale. Add as many items as you like, then charge once.</div>`);
 
-  const soldHtml = sold ? `<div class="sold-banner" role="status"><span><b>Sold · ${eur(sold.total)}</b> · stock updated</span>
+  const soldHtml = sold ? `<div class="sold-banner" role="status"><span><b>${sold.pre ? 'Pre-order handed out' : `Sold · ${eur(sold.total)}`}</b> · stock updated</span>
       <button type="button" class="btn-small" data-action="undo-last">Undo</button></div>` : '';
 
-  const mine = tonight.list.slice().reverse().slice(0, 4);
+  const mine = tonight.all.slice().reverse().slice(0, 4);
   const last = mine.length ? `<h2 class="section-h">Last sales</h2>${mine.map((x) => `<div class="person sale-row">
       <span class="stack-2 grow"><span>${esc(cartLines(x.items).map((i) => (i.qty > 1 ? i.qty + '× ' : '') + i.name + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}</span>
-      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}${x.by !== me.id ? ' · ' + esc(x.byName || '') : ''}</span>${noteLine(x)}</span>
+      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${payText(x)}${x.by !== me.id ? ' · ' + esc(x.byName || '') : ''}</span>${noteLine(x)}</span>
       <button type="button" class="btn-small" data-action="sale-note" data-id="${esc(x.id)}" aria-label="${x.note ? 'Edit note' : 'Add note'}">${x.note ? 'Note' : '+ Note'}</button>
       ${x.by === me.id || isMgmt(bandId) ? `<button type="button" class="btn-small" data-action="undo-sale" data-id="${esc(x.id)}">Undo</button>` : ''}
     </div>`).join('')}` : '';
@@ -241,7 +245,7 @@ export function renderSell() {
     <div class="sell-top card pad">
       <label class="lbl">Merch table for<select name="sellNight" data-band="${esc(bandId)}">${opts.map(([k, l]) => `<option value="${esc(k)}" ${k === key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
       <div class="row-inline wrap">
-        <span class="sell-total"><b>${eur(tonight.total)}</b> <span class="muted small">tonight · ${tonight.count} ${tonight.count === 1 ? 'sale' : 'sales'} · ${tonight.items} items</span></span>
+        <span class="sell-total"><b>${eur(tonight.total)}</b> <span class="muted small">tonight · ${tonight.count} ${tonight.count === 1 ? 'sale' : 'sales'} · ${tonight.items} items${tonight.pre.items ? `<br>+ ${tonight.pre.items} pre-order${tonight.pre.items === 1 ? '' : 's'} handed out` : ''}</span></span>
         <span class="grow"></span>
         <div class="seg sell-seg" role="group" aria-label="Selling from">${[...LOCS, ['all', 'All'], ['sold', `Sold out${goneCount ? ' ' + goneCount : ''}`]].map(([k, l]) => `<button type="button" class="${loc === k ? 'on' : ''} ${k === 'sold' ? 'sold-tab' : ''}" data-action="sell-loc" data-loc="${k}" aria-pressed="${loc === k}">${l}</button>`).join('')}</div>
       </div>
@@ -289,8 +293,8 @@ export function renderNights() {
   const list = nights(bandId);
   const rows = list.map((n) => `<a class="person" href="#/merch/night/${esc(n.key)}">
       <span class="row-date"><span class="wd">${n.date ? esc(fmtDay(n.date).split(' ')[0].toUpperCase()) : ''}</span><span class="dn">${n.date ? esc(String(+n.date.slice(8))) : '?'}</span></span>
-      <span class="stack-2 grow"><span class="person-name">${esc(n.place)}</span><span class="muted small">${n.count} sales · ${n.items} items${n.doc.closed ? ' · closed' : ' · open'}</span></span>
-      <b>${eur(n.total)}</b>
+      <span class="stack-2 grow"><span class="person-name">${esc(n.place)}</span><span class="muted small">${n.key.startsWith('p-') ? `${n.pre.items} pre-order item${n.pre.items === 1 ? '' : 's'} handed out` : `${n.count} sales · ${n.items} items${n.pre.items ? ` · ${n.pre.items} pre-order item${n.pre.items === 1 ? '' : 's'}` : ''}${n.doc.closed ? ' · closed' : ' · open'}`}</span></span>
+      <b>${n.key.startsWith('p-') ? '' : eur(n.total)}</b>
     </a>`).join('');
   return head('merch/nights', bandId, 'Merch') + `<main id="main" class="merch-main">
     ${rows || '<div class="empty">After the first sale, each show night shows up here with its report and cash count.</div>'}
@@ -313,7 +317,7 @@ export function renderNight(key) {
       <div class="title-row"><h1>Night report</h1></div>
       <p class="muted">${esc(t.date ? fmtDayLong(t.date) : '')} · ${esc(t.place)}</p>
     </header>`;
-  const open = s.list.filter((x) => x.note && !x.noteDone);
+  const open = s.all.filter((x) => x.note && !x.noteDone);
   const notesBox = open.length ? `<div class="card pad notes-box">
       <span class="h2">Notes to check · ${open.length}</span>
       <p class="muted small">Fix the stock under Stock (e.g. +1 M, −1 L), then tick it off.</p>
@@ -359,17 +363,29 @@ export function renderNight(key) {
         ${hints.moves.length ? '<button type="button" class="btn-outline" data-action="do-moves">Done, moved them (update the stock)</button>' : ''}
       </div>` : ''}
 
-    ${s.count ? `<h2 class="section-h">All sales</h2>${s.list.slice().reverse().map((x) => `<div class="person sale-row">
+    ${s.pre.count ? `<h2 class="section-h">Pre-orders handed out</h2>
+      <div class="card pad stack-8 pre-box">
+        <div class="cash-line"><span>Items</span><b>${s.pre.items}</b></div>
+        <div class="cash-line"><span>Value at sale price</span><b>${eur(s.pre.value)}</b></div>
+        <p class="muted small">Already paid, so not in tonight's takings and not in the cash count.</p>
+        ${s.pre.list.flatMap((x) => x.items.map((i) => `<div class="cash-line"><span>${esc([i.name, i.colour, i.size && i.size !== 'One size' ? i.size : ''].filter(Boolean).join(' · '))}</span><span class="muted">${esc(x.customer || '–')}</span></div>`)).join('')}
+      </div>` : ''}
+    ${s.all.length ? `<h2 class="section-h">All sales</h2>${s.all.slice().reverse().map((x) => `<div class="person sale-row">
       <span class="stack-2 grow"><span>${esc(x.items.map((i) => i.name + (i.colour ? ' ' + i.colour : '') + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}</span>
-      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}${x.byName ? ' · ' + esc(x.byName) : ''}</span>${noteLine(x)}</span>
+      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${payText(x)}${x.byName ? ' · ' + esc(x.byName) : ''}</span>${noteLine(x)}</span>
       <button type="button" class="btn-small" data-action="sale-note" data-id="${esc(x.id)}" aria-label="${x.note ? 'Edit note' : 'Add note'}">${x.note ? 'Note' : '+ Note'}</button>
-      ${mgmt ? `<button type="button" class="btn-small" data-action="sale-pay" data-id="${esc(x.id)}" aria-label="Change to ${x.pay === 'cash' ? 'card' : 'cash'}">→ ${x.pay === 'cash' ? 'Card' : 'Cash'}</button>` : ''}
+      ${mgmt && x.pay !== 'preorder' ? `<button type="button" class="btn-small" data-action="sale-pay" data-id="${esc(x.id)}" aria-label="Change to ${x.pay === 'cash' ? 'card' : 'cash'}">→ ${x.pay === 'cash' ? 'Card' : 'Cash'}</button>` : ''}
       ${x.by === me.id || mgmt ? `<button type="button" class="btn-small" data-action="undo-sale" data-id="${esc(x.id)}">Undo</button>` : ''}
     </div>`).join('')}` : '<div class="empty">No sales for this night yet.</div>'}
-    ${s.count ? `<div class="btn-row"><button type="button" class="btn-outline" data-action="share-night">Share report</button><button type="button" class="btn-outline" data-action="export-night" data-key="${esc(key)}">Export (CSV)</button></div>` : ''}
-    ${mgmt ? `<button type="button" class="btn-outline danger" data-action="delete-night" data-key="${esc(key)}">${icons.close(16)} Delete this night${s.count ? ` (${s.count} ${s.count === 1 ? 'sale' : 'sales'})` : ''}</button>
+    ${s.all.length ? `<div class="btn-row"><button type="button" class="btn-outline" data-action="share-night">Share report</button><button type="button" class="btn-outline" data-action="export-night" data-key="${esc(key)}">Export (CSV)</button></div>` : ''}
+    ${mgmt ? `<button type="button" class="btn-outline danger" data-action="delete-night" data-key="${esc(key)}">${icons.close(16)} Delete this night${s.all.length ? ` (${s.all.length} ${s.all.length === 1 ? 'sale' : 'sales'})` : ''}</button>
       <p class="muted small">For test sales or mistakes: removes the sales and the cash count, and puts the items back into stock.</p>` : ''}
   </main>`;
+}
+
+function payText(x) {
+  if (x.pay === 'preorder') return `Pre-order${x.customer ? ' · ' + esc(x.customer) : ''}`;
+  return `${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}`;
 }
 
 function noteLine(x) {
@@ -391,6 +407,7 @@ export function nightText(bandId, key) {
   const lines2 = [
     `${bandById(bandId).name} merch · ${t.date ? fmtDay(t.date) : ''} · ${t.place}`,
     `Sold: ${eur(s.total)} (${s.items} items, ${s.count} sales)`,
+    ...(s.pre.items ? [`Pre-orders handed out: ${s.pre.items} (worth ${eur(s.pre.value)}, already paid)`] : []),
     `Cash: ${eur(s.cash)} · Card: ${eur(s.card)}`
   ];
   if (doc.counted != null) lines2.push(`Cash box counted: ${eur(doc.counted)} (float ${eur(doc.float || 0)})`);

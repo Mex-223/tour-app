@@ -124,6 +124,7 @@ export function sellOptions(bandId) {
 
 export function nightTitle(bandId, key) {
   if (key.startsWith('d-')) return { date: key.slice(2), place: 'No show', event: null };
+  if (key.startsWith('p-')) return { date: key.slice(2), place: 'Pre-orders', event: null };
   const e = events.find((x) => x.id === key);
   return e ? { date: e.date, place: e.place || e.title || 'Show', event: e } : { date: '', place: 'Show (deleted)', event: null };
 }
@@ -137,8 +138,12 @@ export function nights(bandId) {
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 }
 
-export function summary(bandId, list) {
+// Pre-orders handed out (pay: 'preorder') take stock but bring no money tonight: counted separately.
+export const isPre = (s) => s.pay === 'preorder';
+export function summary(bandId, all) {
   const prods = Object.fromEntries(products(bandId).map((p) => [p.id, p]));
+  const list = all.filter((s) => !isPre(s));
+  const preList = all.filter(isPre);
   let total = 0; let cash = 0; let card = 0; let items = 0; let cost = 0; let costKnown = true;
   const best = {}; const sizes = {};
   list.forEach((s) => {
@@ -154,11 +159,13 @@ export function summary(bandId, list) {
       if (it.size && p && p.sizes.length > 1) sizes[it.size] = (sizes[it.size] || 0) + 1;
     });
   });
+  const pre = { count: preList.length, items: 0, value: 0, list: preList };
+  preList.forEach((s) => s.items.forEach((it) => { pre.items += 1; pre.value += Number(it.price) || 0; }));
   return {
     total, cash, card, items, count: list.length,
     profit: costKnown ? total - cost : null,
     best: Object.values(best).sort((a, b) => b.n - a.n || b.eur - a.eur),
-    sizes, list
+    sizes, list, all, pre
   };
 }
 
@@ -214,7 +221,7 @@ export const nowLocal = () => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 };
 
-export const LOG_TYPES = { edit: 'Manual edit', delivery: 'Delivery', count: 'Stock count', gone: 'Damaged / given away', move: 'Moved to van box', sale: 'Sale', added: 'Added' };
+export const LOG_TYPES = { edit: 'Manual edit', delivery: 'Delivery', count: 'Stock count', gone: 'Damaged / given away', move: 'Moved to van box', sale: 'Sale', preorder: 'Pre-order', added: 'Added' };
 
 // Log ids for a sale: one per cart line, so an undo can remove exactly those
 // Sale lines for the log: same item + same place = one line (old sales have no place per item: the sale's place)
@@ -231,7 +238,7 @@ export const saleLogIds = (saleId, items, defLoc) => saleGroups(items, defLoc).m
 
 export function saleLogs(saleId, sale, p0) {
   return saleGroups(sale.items, sale.loc).map((l, k) => ({
-    id: `${saleId}_${k}`, pid: l.pid, type: 'sale', cid: l.cid, colour: l.colour || '', size: l.size, loc: l.loc, n: -l.qty,
+    id: `${saleId}_${k}`, pid: l.pid, type: sale.pay === 'preorder' ? 'preorder' : 'sale', cid: l.cid, colour: l.colour || '', size: l.size, loc: l.loc, n: -l.qty,
     note: '', saleId, at: sale.at, ts: Date.now(), by: sale.by, byName: sale.byName, ...(p0 || {})
   }));
 }

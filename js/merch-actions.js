@@ -130,8 +130,10 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const bandId = merchBand();
       const cart = cartFor(bandId);
       if (!cart.items.length) return 'none';
-      const { discount } = bundleDiscount(bandId, cart.items);
-      const total = Math.round((cart.items.reduce((t, i) => t + i.price, 0) - discount) * 100) / 100;
+      const pre = (state.sellPay || 'card') === 'preorder';
+      const discount = pre ? 0 : bundleDiscount(bandId, cart.items).discount;
+      const value = Math.round(cart.items.reduce((t, i) => t + i.price, 0) * 100) / 100;
+      const total = pre ? 0 : Math.round((value - discount) * 100) / 100;
       const key = currentNight(bandId);
       const mode = state.sellLoc || 'van';
       const pay = state.sellPay || 'card';
@@ -154,12 +156,14 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const sale = {
         at: local, date: key.startsWith('d-') ? key.slice(2) : local.slice(0, 10), eventId: ev, night: key,
         by: me.id, byName: me.name, pay, loc, items, discount, total,
+        ...(pre ? { value, customer: String(state.preName || '').trim().slice(0, 60) } : {}),
         ...(String(state.saleNote || '').trim() ? { note: String(state.saleNote).trim().slice(0, 120), noteDone: false } : {})
       };
       const moves = items.map((i) => ({ pid: i.pid, cid: i.cid, loc: i.loc, size: i.size, n: -1 }));
       const id = backend().newId();
-      state.sold = { band: bandId, saleId: id, total, items: cart.items.map((i) => ({ ...i })), note: state.saleNote || '' };
+      state.sold = { band: bandId, saleId: id, total, pre, items: cart.items.map((i) => ({ ...i })), note: state.saleNote || '', preName: state.preName || '' };
       state.saleNote = '';
+      state.preName = '';
       state.cart = { band: bandId, items: [] };
       state.sellGiven = null;
       backend().recordSale(bandId, id, sale, moves, { logs: saleLogs(id, sale) }).catch((err) => toast(err.message || 'Could not save the sale.'));
@@ -174,6 +178,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       state.sold = null;
       state.cart = { band: bandId, items: sold.items.map((i) => ({ ...i })) };
       state.saleNote = sold.note || '';
+      state.preName = sold.preName || '';
       if (s) backend().undoSale(bandId, s.id, backMoves(bandId, [s]), { dropLogs: saleLogIds(s.id, s.items, s.loc) }).catch((err) => toast(err.message || 'Could not undo.'));
       toast('Sale undone. The items are back in the cart.');
       return undefined;
@@ -363,7 +368,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
     const de = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
     const r2 = (n) => Math.round(n * 100) / 100;
     const rows = [['Date', 'Time', 'Show', 'Product', 'Colour', 'Size', 'Price', 'Payment', 'Sold by', 'Note']];
-    const T = { total: 0, card: 0, cash: 0, items: 0, cost: 0, costKnown: true };
+    const T = { total: 0, card: 0, cash: 0, items: 0, pre: 0, cost: 0, costKnown: true };
     list.forEach((x) => {
       const t = nightTitle(bandId, nightKeyOf(x));
       const date = de(String(x.at || x.date || '').slice(0, 10));
@@ -371,15 +376,18 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const pay = x.pay === 'cash' ? 'Cash' : 'Card';
       T.total += x.total; T[x.pay === 'cash' ? 'cash' : 'card'] += x.total;
       x.items.forEach((i) => {
-        T.items += 1;
+        if (x.pay === 'preorder') T.pre += 1; else T.items += 1;
         const p = prods[i.pid];
-        if (p && p.cost != null) T.cost += p.cost; else T.costKnown = false;
-        rows.push([date, time, t.place, i.name, i.colour || '', i.size && i.size !== 'One size' ? i.size : '', Number(i.price) || 0, pay, x.byName || '', x.note ? x.note + (x.noteDone ? ' (fixed)' : '') : '']);
+        if (x.pay !== 'preorder') { if (p && p.cost != null) T.cost += p.cost; else T.costKnown = false; }
+        const isPreRow = x.pay === 'preorder';
+        rows.push([date, time, t.place, i.name, i.colour || '', i.size && i.size !== 'One size' ? i.size : '', isPreRow ? 0 : Number(i.price) || 0, isPreRow ? 'Pre-order (paid before)' : pay, x.byName || '',
+          [isPreRow && x.customer ? 'for ' + x.customer : '', x.note ? x.note + (x.noteDone ? ' (fixed)' : '') : ''].filter(Boolean).join(' · ')]);
       });
       if (x.discount) rows.push([date, time, t.place, 'Bundle discount', '', '', -x.discount, pay, x.byName || '']);
     });
     rows.push(['TOTAL', '', '', `${T.items} items`, '', '', r2(T.total), '', '']);
     rows.push([], ['Card', r2(T.card)], ['Cash', r2(T.cash)]);
+    if (T.pre) rows.push(['Pre-orders handed out', `${T.pre} items (paid before, not in the total)`]);
     if (mgmt && T.costKnown && list.length) rows.push(['Profit', r2(T.total - T.cost)]);
     return rows;
   }
@@ -601,6 +609,8 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
     }
     if (t.name === 'sellNight') {
       state.sellNight = { band: t.dataset.band, key: t.value };
+      if (t.value.startsWith('p-')) state.sellPay = 'preorder';
+      else if (state.sellPay === 'preorder') state.sellPay = 'card';
       state.formDirty = false;
       render();
       return;
@@ -616,6 +626,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
 
   document.addEventListener('input', (ev) => {
     if (ev.target.name === 'saleNote') { state.saleNote = ev.target.value; return; }
+    if (ev.target.name === 'preName') { state.preName = ev.target.value; return; }
     const form = ev.target.closest && ev.target.closest('form[data-form="night"]');
     if (form) {
       const f = new FormData(form);
