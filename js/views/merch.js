@@ -32,7 +32,7 @@ export function art(kind, hex, cls = '') {
   return `<svg class="art ${cls}" viewBox="0 0 128 100" aria-hidden="true">${shapes[kind] || shapes.other}</svg>`;
 }
 const pic = (bandId, p, c, cls = '') => {
-  const src = photo(bandId, p.id, c.id);
+  const src = photo(bandId, p.id);
   return src ? `<img class="pic ${cls}" src="${src}" alt="">` : `<span class="pic ${cls}" style="background:#2C2F35">${art(p.kind, c.hex)}</span>`;
 };
 
@@ -79,7 +79,7 @@ export function renderStock() {
     const n = pTotal(p, loc);
     const isOpen = open.pid === p.id;
     const sel = p.colours.find((c) => c.id === open.cid) || null;
-    const withPhoto = p.colours.find((c) => photo(bandId, p.id, c.id)) || [...p.colours].sort((x, y) => totalOf(p, y.id, 'all') - totalOf(p, x.id, 'all'))[0];
+    const withPhoto = [...p.colours].sort((x, y) => totalOf(p, y.id, 'all') - totalOf(p, x.id, 'all'))[0];
     const sub = p.colours.length > 1 ? `${eur(p.price)} · ${p.colours.length} colours` : [eur(p.price), p.colours[0].name].filter(Boolean).join(' · ');
     const one = p.colours.length === 1;
     const detail = !isOpen ? '' : `<div class="stock-detail">
@@ -179,7 +179,7 @@ export function renderSell() {
   const tiles = ps.map((p) => {
     const here = p.colours.reduce((t, c) => t + totalOf(p, c.id, where), 0) - inCart(p.id);
     const there = loc === 'van' || loc === 'storage' ? p.colours.reduce((t, c) => t + totalOf(p, c.id, other), 0) : 0;
-    const withPhoto = p.colours.find((c) => photo(bandId, p.id, c.id)) || p.colours[0];
+    const withPhoto = p.colours[0];
     const sub = p.colours.length > 1 ? `${eur(p.price)} · ${p.colours.length} colours` : [eur(p.price), p.colours[0].name].filter(Boolean).join(' · ');
     const left = loc === 'sold' ? 'Sold out everywhere' : here > 0 ? `${here} left` : (there > 0 ? `0 here · ${there} in ${LOC_NAME[other].toLowerCase()}` : 'none left');
     return `<button type="button" class="sell-tile ${here > 0 ? '' : 'none-left'}" data-action="sell-tap" data-pid="${esc(p.id)}">
@@ -391,13 +391,14 @@ export function ensureProductDraft(bandId, id) {
     state.pd = {
       key, band: bandId, id: p.id, name: p.name || '', kind: p.kind || 'shirt', price: p.price, cost: p.cost != null ? p.cost : '', lowAt: p.lowAt,
       sizesText: p.sizes.join(', '),
-      colours: p.colours.map((c) => ({ ...c, photo: photo(bandId, p.id, c.id), photoChanged: false })),
+      colours: p.colours.map((c) => ({ ...c })),
+      photo: photo(bandId, p.id), photoChanged: false,
       stock: JSON.parse(JSON.stringify(p.stock || {})), orig: JSON.parse(JSON.stringify(p.stock || {})), order: p.order || 0,
       sel: p.colours[0].id, logType: 'edit', logNote: ''
     };
   } else {
     const first = cid();
-    state.pd = { key, band: bandId, id: null, name: '', kind: 'shirt', price: '', cost: '', lowAt: 2, sizesText: SIZE_PRESETS.shirt, colours: [{ id: first, name: 'Black', hex: '#17181B', photo: null, photoChanged: false }], stock: {}, orig: {}, order: Date.now(), sel: first, logType: 'edit', logNote: '' };
+    state.pd = { key, band: bandId, id: null, name: '', kind: 'shirt', price: '', cost: '', lowAt: 2, sizesText: SIZE_PRESETS.shirt, colours: [{ id: first, name: 'Black', hex: '#17181B' }], photo: null, photoChanged: false, stock: {}, orig: {}, order: Date.now(), sel: first, logType: 'edit', logNote: '' };
   }
   return state.pd;
 }
@@ -425,14 +426,6 @@ export function renderProductForm(id) {
 
   const card = `<fieldset class="card pad stack-8 colour-block">
       <legend class="sr">${esc(c.name || 'Colour')}</legend>
-      <div class="row-inline">
-        ${c.photo ? `<img class="pic pic-edit" src="${c.photo}" alt="Photo ${esc(c.name)}">` : `<span class="pic pic-edit" style="background:#2C2F35">${art(d.kind, c.hex)}</span>`}
-        <div class="stack-8 grow">
-          <label class="photo-btn btn-small">${icons.plus(14)} Take photo<input type="file" accept="image/*" capture="environment" data-photo="${esc(c.id)}" class="sr"></label>
-          <label class="photo-btn btn-small">From gallery<input type="file" accept="image/*" data-photo="${esc(c.id)}" class="sr"></label>
-          ${c.photo ? `<span class="muted small">${kb(c.photo)} KB · works offline · <button type="button" class="link-btn small" data-action="pd-photo-remove" data-cid="${esc(c.id)}">remove</button></span>` : '<span class="muted small">Shrunk automatically to about 100 KB.</span>'}
-        </div>
-      </div>
       <div class="grid-2">
         <label class="lbl">Colour name<input type="text" name="c_name_${esc(c.id)}" maxlength="24" value="${esc(c.name || '')}" placeholder="e.g. Black"></label>
         <label class="lbl">Colour<select name="c_hex_${esc(c.id)}">${COLOURS.map(([nm, h]) => `<option value="${h}" ${h === c.hex ? 'selected' : ''}>${nm}</option>`).join('')}${COLOURS.some(([, h]) => h === c.hex) ? '' : `<option value="${esc(c.hex)}" selected>Custom</option>`}</select></label>
@@ -491,6 +484,16 @@ export function renderProductForm(id) {
       </div>
       <p class="muted small profit-line">${profitText(d.price, d.cost)}</p>
 
+      <div class="row-inline product-photo">
+        ${d.photo ? `<img class="pic pic-edit" src="${d.photo}" alt="Photo of ${esc(d.name || 'the product')}">` : `<span class="pic pic-edit" style="background:#2C2F35">${art(d.kind, c.hex)}</span>`}
+        <div class="stack-8 grow">
+          <span class="lbl-text">Photo · one for all colours</span>
+          <label class="photo-btn btn-small">${icons.plus(14)} Take photo<input type="file" accept="image/*" capture="environment" data-photo="product" class="sr"></label>
+          <label class="photo-btn btn-small">From gallery<input type="file" accept="image/*" data-photo="product" class="sr"></label>
+          ${d.photo ? `<span class="muted small">${kb(d.photo)} KB · works offline · <button type="button" class="link-btn small" data-action="pd-photo-remove">remove</button></span>` : '<span class="muted small">Shrunk automatically to about 100 KB.</span>'}
+        </div>
+      </div>
+
       <div class="stat-tiles">
         <div class="stat"><span class="label"><i style="background:var(--text)"></i>Total</span><b data-tile="total">${n.total}</b></div>
         <div class="stat"><span class="label"><i class="loc-van-bg"></i>Van box</span><b data-tile="van">${n.van}</b></div>
@@ -498,7 +501,7 @@ export function renderProductForm(id) {
         <div class="stat"><span class="label"><i style="background:var(--amber)"></i>Low sizes</span><b data-tile="low" class="${n.low ? 'low' : ''}">${n.low}</b></div>
       </div>
 
-      <span class="lbl-text">Colours · tap one to edit its photo and stock</span>
+      <span class="lbl-text">Colours · tap one to edit its stock</span>
       <div class="colour-chips" role="group" aria-label="Colours">
         ${d.colours.map((x) => `<button type="button" class="colour-chip ${x.id === c.id ? 'on' : ''}" data-action="pd-colour-pick" data-cid="${esc(x.id)}" aria-pressed="${x.id === c.id}"><i style="background:${esc(x.hex)}" aria-hidden="true"></i><span class="cname">${esc(x.name || 'Colour')}</span><span class="n ${n.byColour[x.id].total < 3 ? 'low' : ''}" data-chip-n="${esc(x.id)}">${n.byColour[x.id].total}</span></button>`).join('')}
         <button type="button" class="colour-chip add" data-action="pd-colour-add">+ Colour</button>

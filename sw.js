@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.11.0';
-const NOTES = 'Sell: new All tab (van box first, then storage) and a Sold out tab. Fully sold-out products no longer clutter the other tabs.';
+const VERSION = '1.11.1';
+const NOTES = 'Merch: one photo per product (for all colours).';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [

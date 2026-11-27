@@ -46,8 +46,11 @@ export function products(bandId) {
 }
 export const productById = (bandId, pid) => products(bandId).find((p) => p.id === pid);
 
-export function photo(bandId, pid, cid) {
-  const hit = merchOf(bandId, 'photos').find((x) => x.id === `${pid}_${cid}`);
+// One photo per product (saved as photos/{productId}). Older photos were saved per colour
+// (photos/{productId}_{colourId}): if there's no product photo yet, the first of those is used.
+export function photo(bandId, pid) {
+  const list = merchOf(bandId, 'photos');
+  const hit = list.find((x) => x.id === pid) || list.find((x) => x.id.startsWith(pid + '_'));
   return hit ? hit.data : null;
 }
 

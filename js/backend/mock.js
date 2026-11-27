@@ -170,7 +170,7 @@ export const backend = {
   },
   async deleteItem(b, name, id) {
     if (!isMgmt(b)) deny();
-    delete db.lists[b][name][id];
+    delete (((db.lists || {})[b] || {})[name] || {})[id];
     changed();
   },
   // ---------- Merch (mirrors the rules: MGMT edit products; members sell, move stock, count the cash) ----------

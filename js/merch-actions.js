@@ -1,5 +1,5 @@
 // Merch: what happens when you tap, type or save on the merch screens.
-import { state, me, bandById } from './store.js';
+import { state, me, bandById, merchOf } from './store.js';
 import {
   merchBand, products, productById, parseEur, parseSizes, bundleDiscount, refillHints, salesOf, SIZE_PRESETS, COLOURS
 } from './merch.js';
@@ -260,31 +260,30 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const d = collectPd(pdForm());
       const used = d.colours.map((c) => c.hex);
       const [name, hex] = COLOURS.find(([, h]) => !used.includes(h)) || COLOURS[0];
-      const nc = { id: newColourId(), name, hex, photo: null, photoChanged: false };
+      const nc = { id: newColourId(), name, hex };
       d.colours.push(nc);
       d.sel = nc.id;
       state.formDirty = false;
     },
     'pd-colour-remove': (el) => {
       const d = collectPd(pdForm());
-      if (!confirm('Remove this colour with its photo and stock?')) return 'none';
+      if (!confirm('Remove this colour with its stock?')) return 'none';
       d.removed = [...(d.removed || []), el.dataset.cid];
       d.colours = d.colours.filter((c) => c.id !== el.dataset.cid);
       delete d.stock[el.dataset.cid];
       state.formDirty = false;
       return undefined;
     },
-    'pd-photo-remove': (el) => {
+    'pd-photo-remove': () => {
       const d = collectPd(pdForm());
-      const c = d.colours.find((x) => x.id === el.dataset.cid);
-      if (c) { c.photo = null; c.photoChanged = true; }
+      if (d) { d.photo = null; d.photoChanged = true; }
       state.formDirty = false;
     },
     'pd-delete': () => {
       const d = state.pd;
       if (!d || !d.id || !confirm(`Delete "${d.name || 'this product'}"? Past sales stay in the reports.`)) return 'none';
       run(async () => {
-        await backend().deleteProduct(d.band, d.id, d.colours.map((c) => `${d.id}_${c.id}`));
+        await backend().deleteProduct(d.band, d.id, [d.id, ...d.colours.map((c) => `${d.id}_${c.id}`), ...(d.removed || []).map((x) => `${d.id}_${x}`)]);
         state.pd = null;
         location.hash = '#/money';
         toast('Product deleted.');
@@ -539,11 +538,12 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
         }
         const cost = String(d.cost).trim() === '' ? null : parseEur(d.cost);
         await b.saveMerch(bandId, 'costs', pid, { cost });
-        for (const c of d.colours) {
-          if (c.photoChanged && c.photo) await b.saveMerch(bandId, 'photos', `${pid}_${c.id}`, { data: c.photo, pid });
-          if (c.photoChanged && !c.photo && d.id) await b.deleteItem(bandId, 'photos', `${pid}_${c.id}`);
+        if (d.photoChanged) {
+          if (d.photo) await b.saveMerch(bandId, 'photos', pid, { data: d.photo, pid });
+          else if (d.id) await b.deleteItem(bandId, 'photos', pid);
+          // old per-colour photos are no longer needed
+          if (d.id) for (const old of merchOf(bandId, 'photos').filter((x) => x.id.startsWith(pid + '_'))) await b.deleteItem(bandId, 'photos', old.id);
         }
-        for (const gone of d.removed || []) if (d.id) await b.deleteItem(bandId, 'photos', `${pid}_${gone}`);
         state.pd = null;
         location.hash = '#/money';
         toast(d.id ? 'Saved.' : 'Product added.');
@@ -572,12 +572,11 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const file = t.files && t.files[0];
       if (!file) return;
       const d = collectPd(pdForm());
-      const c = d && d.colours.find((x) => x.id === t.dataset.photo);
-      if (!c) return;
+      if (!d) return;
       toast('Shrinking the photo…');
       try {
-        c.photo = await shrinkPhoto(file);
-        c.photoChanged = true;
+        d.photo = await shrinkPhoto(file);
+        d.photoChanged = true;
       } catch (err) { toast(err.message); }
       state.formDirty = false;
       render();
