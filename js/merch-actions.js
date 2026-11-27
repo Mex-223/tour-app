@@ -84,7 +84,8 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       // One colour and one size (e.g. vinyl): straight into the cart
       if (p.colours.length === 1 && p.sizes.length === 1) { addToCart(bandId, p, p.colours[0].id, p.sizes[0]); return undefined; }
       const loc = state.sellLoc || 'van';
-      const withStock = p.colours.find((c) => p.sizes.some((z) => count(p, c.id, loc, z) > 0));
+      const has = (c, z) => (loc === 'all' ? count(p, c.id, 'van', z) + count(p, c.id, 'storage', z) : count(p, c.id, loc === 'storage' ? 'storage' : 'van', z)) > 0;
+      const withStock = p.colours.find((c) => p.sizes.some((z) => has(c, z)));
       state.pick = { pid: p.id, cid: (withStock || p.colours[0]).id };
       return undefined;
     },
@@ -118,17 +119,31 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const { discount } = bundleDiscount(bandId, cart.items);
       const total = Math.round((cart.items.reduce((t, i) => t + i.price, 0) - discount) * 100) / 100;
       const key = currentNight(bandId);
-      const loc = state.sellLoc || 'van';
+      const mode = state.sellLoc || 'van';
       const pay = state.sellPay || 'card';
       const local = nowLocal();
+      // Where each item comes from. "All": van box first, then storage. "Sold out" tab: van box (goes below zero).
+      const used = {};
+      const items = cart.items.map((i) => {
+        let from = mode === 'storage' ? 'storage' : 'van';
+        if (mode === 'all') {
+          const p = productById(bandId, i.pid);
+          const k = (l) => `${i.pid}|${i.cid}|${i.size}|${l}`;
+          const left = (l) => (p ? count(p, i.cid, l, i.size) : 0) - (used[k(l)] || 0);
+          from = left('van') > 0 ? 'van' : (left('storage') > 0 ? 'storage' : 'van');
+          used[k(from)] = (used[k(from)] || 0) + 1;
+        }
+        return { ...i, loc: from };
+      });
+      const loc = mode === 'all' ? 'all' : (mode === 'storage' ? 'storage' : 'van');
       const ev = key.startsWith('d-') ? null : key;
       const sale = {
         at: local, date: key.startsWith('d-') ? key.slice(2) : local.slice(0, 10), eventId: ev, night: key,
-        by: me.id, byName: me.name, pay, loc, items: cart.items.map((i) => ({ ...i })), discount, total
+        by: me.id, byName: me.name, pay, loc, items, discount, total
       };
-      const moves = cart.items.map((i) => ({ pid: i.pid, cid: i.cid, loc, size: i.size, n: -1 }));
+      const moves = items.map((i) => ({ pid: i.pid, cid: i.cid, loc: i.loc, size: i.size, n: -1 }));
       const id = backend().newId();
-      state.sold = { band: bandId, saleId: id, total, items: sale.items.map((i) => ({ ...i })) };
+      state.sold = { band: bandId, saleId: id, total, items: cart.items.map((i) => ({ ...i })) };
       state.cart = { band: bandId, items: [] };
       state.sellGiven = null;
       backend().recordSale(bandId, id, sale, moves, { logs: saleLogs(id, sale) }).catch((err) => toast(err.message || 'Could not save the sale.'));
@@ -142,7 +157,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const s = salesOf(bandId).find((x) => x.id === sold.saleId);
       state.sold = null;
       state.cart = { band: bandId, items: sold.items.map((i) => ({ ...i })) };
-      if (s) backend().undoSale(bandId, s.id, backMoves(bandId, [s]), { dropLogs: saleLogIds(s.id, s.items) }).catch((err) => toast(err.message || 'Could not undo.'));
+      if (s) backend().undoSale(bandId, s.id, backMoves(bandId, [s]), { dropLogs: saleLogIds(s.id, s.items, s.loc) }).catch((err) => toast(err.message || 'Could not undo.'));
       toast('Sale undone. The items are back in the cart.');
       return undefined;
     },
@@ -151,7 +166,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const s = salesOf(bandId).find((x) => x.id === el.dataset.id);
       if (!s || !confirm(`Undo this sale (${eur(s.total)})? The items go back into stock.`)) return 'none';
       if (state.sold && state.sold.saleId === s.id) state.sold = null;
-      run(async () => { await backend().undoSale(bandId, s.id, backMoves(bandId, [s]), { dropLogs: saleLogIds(s.id, s.items) }); toast('Sale undone. The items are back in stock.'); });
+      run(async () => { await backend().undoSale(bandId, s.id, backMoves(bandId, [s]), { dropLogs: saleLogIds(s.id, s.items, s.loc) }); toast('Sale undone. The items are back in stock.'); });
       return 'none';
     },
     'sale-pay': (el) => {
@@ -173,7 +188,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
         : 'Delete this night and its cash count?';
       if (!confirm(msg)) return 'none';
       run(async () => {
-        await backend().deleteNight(bandId, key, list.map((x) => x.id), backMoves(bandId, list), { dropLogs: list.flatMap((x) => saleLogIds(x.id, x.items)) });
+        await backend().deleteNight(bandId, key, list.map((x) => x.id), backMoves(bandId, list), { dropLogs: list.flatMap((x) => saleLogIds(x.id, x.items, x.loc)) });
         location.hash = '#/merch/nights';
         toast('Night deleted.');
       });
@@ -286,7 +301,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
   // Put sold items back (only for products that still exist)
   function backMoves(bandId, sales) {
     const ids = new Set(products(bandId).map((p) => p.id));
-    return sales.flatMap((x) => x.items.filter((i) => ids.has(i.pid)).map((i) => ({ pid: i.pid, cid: i.cid, loc: x.loc || 'van', size: i.size, n: 1 })));
+    return sales.flatMap((x) => x.items.filter((i) => ids.has(i.pid)).map((i) => ({ pid: i.pid, cid: i.cid, loc: i.loc || (x.loc === 'all' ? 'van' : x.loc) || 'van', size: i.size, n: 1 })));
   }
 
   function addToCart(bandId, p, cid, size) {

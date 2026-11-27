@@ -605,3 +605,5 @@ a.prod-card:hover { border-color: #3A3F46; }
 .prod-card.gone .prod-name { color: var(--muted); }
 .stock-detail .colour-chips { display: flex; flex-wrap: wrap; }
 .stock-detail .colour-chip { min-height: 42px; }
+.sell-seg .sold-tab:not(.on) { color: var(--red-text); }
+.sell-seg { flex-wrap: wrap; }

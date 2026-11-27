@@ -161,29 +161,33 @@ export function renderSell() {
   if (!bandId) return head('merch/sell', null, 'Merch') + '<main id="main"><div class="empty">Join or create a band first.</div></main>';
   const { shows, today } = sellOptions(bandId);
   const key = currentNight(bandId);
-  const loc = state.sellLoc || 'van';
+  const loc = state.sellLoc || 'van';            // van | storage | all | sold
+  const where = loc === 'sold' ? 'all' : loc;     // which stock the numbers show
   const other = loc === 'van' ? 'storage' : 'van';
   const cart = cartFor(bandId);
   const tonight = summary(bandId, nightSales(bandId, key));
   const inCart = (pid, cid, z) => cart.items.filter((i) => i.pid === pid && (cid == null || i.cid === cid) && (z == null || i.size === z)).length;
-  const ps = products(bandId);
+  const allPs = products(bandId);
+  const isGone = (p) => p.colours.reduce((t, c) => t + totalOf(p, c.id, 'all'), 0) === 0;
+  const goneCount = allPs.filter(isGone).length;
+  const ps = allPs.filter((p) => (loc === 'sold' ? isGone(p) : !isGone(p)));
 
   const opts = [...shows.map((e) => [e.id, `${fmtDay(e.date)} · ${e.place || e.title || 'Show'}`]), ['d-' + today, `${fmtDay(today)} · no show (other sale)`]];
   if (!opts.some(([k]) => k === key)) opts.unshift([key, nightTitle(bandId, key).place]);
 
   // One card per product (all colours together)
   const tiles = ps.map((p) => {
-    const here = p.colours.reduce((t, c) => t + totalOf(p, c.id, loc), 0) - inCart(p.id);
-    const there = p.colours.reduce((t, c) => t + totalOf(p, c.id, other), 0);
+    const here = p.colours.reduce((t, c) => t + totalOf(p, c.id, where), 0) - inCart(p.id);
+    const there = loc === 'van' || loc === 'storage' ? p.colours.reduce((t, c) => t + totalOf(p, c.id, other), 0) : 0;
     const withPhoto = p.colours.find((c) => photo(bandId, p.id, c.id)) || p.colours[0];
     const sub = p.colours.length > 1 ? `${eur(p.price)} · ${p.colours.length} colours` : [eur(p.price), p.colours[0].name].filter(Boolean).join(' · ');
-    const left = here > 0 ? `${here} left` : `0 here · ${there} in ${LOC_NAME[other].toLowerCase()}`;
+    const left = loc === 'sold' ? 'Sold out everywhere' : here > 0 ? `${here} left` : (there > 0 ? `0 here · ${there} in ${LOC_NAME[other].toLowerCase()}` : 'none left');
     return `<button type="button" class="sell-tile ${here > 0 ? '' : 'none-left'}" data-action="sell-tap" data-pid="${esc(p.id)}">
       ${pic(bandId, p, withPhoto, 'pic-sell')}
       ${p.colours.length > 1 ? `<span class="dots" aria-hidden="true">${p.colours.map((c) => `<i style="background:${esc(c.hex)}"></i>`).join('')}</span>` : ''}
       <span class="sell-name">${esc(p.name)}</span>
       <span class="muted small">${esc(sub)}</span>
-      <span class="sell-left ${here > 0 ? (here <= p.lowAt ? 'low' : '') : 'empty-here'}">${esc(left)}</span>
+      <span class="sell-left ${loc === 'sold' ? 'out' : here > 0 ? (here <= p.lowAt ? 'low' : '') : 'empty-here'}">${esc(left)}</span>
     </button>`;
   }).join('');
 
@@ -237,11 +241,11 @@ export function renderSell() {
       <div class="row-inline wrap">
         <span class="sell-total"><b>${eur(tonight.total)}</b> <span class="muted small">tonight · ${tonight.count} ${tonight.count === 1 ? 'sale' : 'sales'} · ${tonight.items} items</span></span>
         <span class="grow"></span>
-        <div class="seg" role="group" aria-label="Selling from">${LOCS.map(([k, l]) => `<button type="button" class="${loc === k ? 'on' : ''}" data-action="sell-loc" data-loc="${k}" aria-pressed="${loc === k}">${l}</button>`).join('')}</div>
+        <div class="seg sell-seg" role="group" aria-label="Selling from">${[...LOCS, ['all', 'All'], ['sold', `Sold out${goneCount ? ' ' + goneCount : ''}`]].map(([k, l]) => `<button type="button" class="${loc === k ? 'on' : ''} ${k === 'sold' ? 'sold-tab' : ''}" data-action="sell-loc" data-loc="${k}" aria-pressed="${loc === k}">${l}</button>`).join('')}</div>
       </div>
     </div>
     <div class="sell-layout">
-      <div class="sell-grid">${tiles || `<div class="empty">No products yet. ${isMgmt(bandId) ? 'Add them under Stock.' : 'MGMT can add them under Stock.'}</div>`}</div>
+      <div class="sell-grid">${tiles || `<div class="empty">${loc === 'sold' ? 'Nothing is completely sold out.' : allPs.length ? 'Everything is sold out. See the Sold out tab.' : `No products yet. ${isMgmt(bandId) ? 'Add them under Stock.' : 'MGMT can add them under Stock.'}`}</div>`}</div>
       <div class="sell-side">${soldHtml}${cartHtml}${last}
         <a class="btn-outline" href="#/merch/night/${esc(key)}">Night report & cash count</a>
       </div>
@@ -255,11 +259,13 @@ function pickSheet(bandId, loc, inCart) {
   const p = productById(bandId, state.pick.pid);
   if (!p) return '';
   const c = p.colours.find((x) => x.id === state.pick.cid) || p.colours[0];
-  const left = (cid, z) => count(p, cid, loc, z) - inCart(p.id, cid, z);
+  const at = (cid, z) => (loc === 'all' ? count(p, cid, 'van', z) + count(p, cid, 'storage', z) : loc === 'sold' ? 0 : count(p, cid, loc, z));
+  const left = (cid, z) => at(cid, z) - inCart(p.id, cid, z);
+  const fromTxt = loc === 'all' ? 'van box first, then storage' : loc === 'sold' ? 'sold out everywhere' : 'from the ' + LOC_NAME[loc].toLowerCase();
   return `<div class="sheet-backdrop pick-backdrop" data-action="pick-close"></div>
   <div class="sheet pick-sheet" role="dialog" aria-modal="true" aria-label="${esc(p.name)}: pick ${p.colours.length > 1 ? 'colour and ' : ''}size">
     <div class="sheet-handle" aria-hidden="true"></div>
-    <div class="row-inline">${pic(bandId, p, c, 'pic-mini')}<span class="stack-2 grow"><span class="sheet-title">${esc(p.name)}</span><span class="muted small">${eur(p.price)} · from the ${esc(LOC_NAME[loc].toLowerCase())}</span></span>
+    <div class="row-inline">${pic(bandId, p, c, 'pic-mini')}<span class="stack-2 grow"><span class="sheet-title">${esc(p.name)}</span><span class="muted small">${eur(p.price)} · ${esc(fromTxt)}</span></span>
       <button type="button" class="icon-btn" data-action="pick-close" aria-label="Close">${icons.close(20)}</button></div>
     ${p.colours.length > 1 ? `<div class="colour-chips" role="group" aria-label="Colour">${p.colours.map((x) => {
       const n = p.sizes.reduce((t, z) => t + Math.max(0, left(x.id, z)), 0);

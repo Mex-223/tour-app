@@ -214,11 +214,21 @@ export const nowLocal = () => {
 export const LOG_TYPES = { edit: 'Manual edit', delivery: 'Delivery', count: 'Stock count', gone: 'Damaged / given away', move: 'Moved to van box', sale: 'Sale', added: 'Added' };
 
 // Log ids for a sale: one per cart line, so an undo can remove exactly those
-export const saleLogIds = (saleId, items) => cartLines(items).map((_, k) => `${saleId}_${k}`);
+// Sale lines for the log: same item + same place = one line (old sales have no place per item: the sale's place)
+export function saleGroups(items, defLoc) {
+  const out = [];
+  items.forEach((i) => {
+    const loc = i.loc || defLoc || 'van';
+    const hit = out.find((l) => l.pid === i.pid && l.cid === i.cid && l.size === i.size && l.loc === loc);
+    if (hit) hit.qty += 1; else out.push({ pid: i.pid, cid: i.cid, size: i.size, colour: i.colour, loc, qty: 1 });
+  });
+  return out;
+}
+export const saleLogIds = (saleId, items, defLoc) => saleGroups(items, defLoc).map((_, k) => `${saleId}_${k}`);
 
 export function saleLogs(saleId, sale, p0) {
-  return cartLines(sale.items).map((l, k) => ({
-    id: `${saleId}_${k}`, pid: l.pid, type: 'sale', cid: l.cid, colour: l.colour || '', size: l.size, loc: sale.loc || 'van', n: -l.qty,
+  return saleGroups(sale.items, sale.loc).map((l, k) => ({
+    id: `${saleId}_${k}`, pid: l.pid, type: 'sale', cid: l.cid, colour: l.colour || '', size: l.size, loc: l.loc, n: -l.qty,
     note: '', saleId, at: sale.at, ts: Date.now(), by: sale.by, byName: sale.byName, ...(p0 || {})
   }));
 }
