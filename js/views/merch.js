@@ -221,6 +221,7 @@ export function renderSell() {
         <div class="given-btns">${givenOpts.map(([v, l]) => `<button type="button" class="${String(given) === String(v) ? 'on' : ''}" data-action="sell-given" data-v="${v}" aria-pressed="${String(given) === String(v)}">${l}</button>`).join('')}</div>
         ${givenEur != null ? (givenEur >= sum ? `<div class="change"><span>Change</span><b>${eur(givenEur - sum)}</b></div>` : `<div class="change short"><span>Not enough</span><b>${eur(sum - givenEur)} missing</b></div>`) : ''}
       </div>` : ''}
+      <label class="lbl sale-note">Note (optional)<input type="text" name="saleNote" maxlength="120" value="${esc(state.saleNote || '')}" placeholder="e.g. swapped M for L" autocomplete="off"></label>
       <button type="button" class="btn-primary charge-btn" data-action="charge">Charge ${eur(sum)} · ${pay === 'cash' ? 'cash' : 'card'}</button>
       <button type="button" class="link-btn clear-sale" data-action="cart-clear">Clear sale</button>
     </div>` : (sold ? '' : `<div class="empty">Tap a product to start a sale. Add as many items as you like, then charge once.</div>`);
@@ -231,7 +232,8 @@ export function renderSell() {
   const mine = tonight.list.slice().reverse().slice(0, 4);
   const last = mine.length ? `<h2 class="section-h">Last sales</h2>${mine.map((x) => `<div class="person sale-row">
       <span class="stack-2 grow"><span>${esc(cartLines(x.items).map((i) => (i.qty > 1 ? i.qty + '× ' : '') + i.name + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}</span>
-      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}${x.by !== me.id ? ' · ' + esc(x.byName || '') : ''}</span></span>
+      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}${x.by !== me.id ? ' · ' + esc(x.byName || '') : ''}</span>${noteLine(x)}</span>
+      <button type="button" class="btn-small" data-action="sale-note" data-id="${esc(x.id)}" aria-label="${x.note ? 'Edit note' : 'Add note'}">${x.note ? 'Note' : '+ Note'}</button>
       ${x.by === me.id || isMgmt(bandId) ? `<button type="button" class="btn-small" data-action="undo-sale" data-id="${esc(x.id)}">Undo</button>` : ''}
     </div>`).join('')}` : '';
 
@@ -311,7 +313,18 @@ export function renderNight(key) {
       <div class="title-row"><h1>Night report</h1></div>
       <p class="muted">${esc(t.date ? fmtDayLong(t.date) : '')} · ${esc(t.place)}</p>
     </header>`;
+  const open = s.list.filter((x) => x.note && !x.noteDone);
+  const notesBox = open.length ? `<div class="card pad notes-box">
+      <span class="h2">Notes to check · ${open.length}</span>
+      <p class="muted small">Fix the stock under Stock (e.g. +1 M, −1 L), then tick it off.</p>
+      ${open.map((x) => `<div class="note-row">
+        <span class="stack-2 grow"><b>“${esc(x.note)}”</b>
+        <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${esc(cartLines(x.items).map((i) => (i.qty > 1 ? i.qty + '× ' : '') + i.name + (i.colour ? ' ' + i.colour : '') + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}${x.byName ? ' · ' + esc(x.byName) : ''}</span></span>
+        <button type="button" class="btn-small" data-action="sale-note-done" data-id="${esc(x.id)}">✓ Fixed</button>
+      </div>`).join('')}
+    </div>` : '';
   return headHtml + `<main id="main" class="merch-main">
+    ${notesBox}
     <div class="grid-3 kpis">
       <div class="tile"><span class="label">Sold</span><b class="kpi">${eur(s.total)}</b></div>
       <div class="tile"><span class="label">Items · sales</span><b class="kpi">${s.items} · ${s.count}</b></div>
@@ -348,7 +361,8 @@ export function renderNight(key) {
 
     ${s.count ? `<h2 class="section-h">All sales</h2>${s.list.slice().reverse().map((x) => `<div class="person sale-row">
       <span class="stack-2 grow"><span>${esc(x.items.map((i) => i.name + (i.colour ? ' ' + i.colour : '') + (i.size && i.size !== 'One size' ? ' ' + i.size : '')).join(', '))}</span>
-      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}${x.byName ? ' · ' + esc(x.byName) : ''}</span></span>
+      <span class="muted small">${esc(String(x.at || '').slice(11, 16))} · ${x.pay === 'cash' ? 'Cash' : 'Card'} · ${eur(x.total)}${x.byName ? ' · ' + esc(x.byName) : ''}</span>${noteLine(x)}</span>
+      <button type="button" class="btn-small" data-action="sale-note" data-id="${esc(x.id)}" aria-label="${x.note ? 'Edit note' : 'Add note'}">${x.note ? 'Note' : '+ Note'}</button>
       ${mgmt ? `<button type="button" class="btn-small" data-action="sale-pay" data-id="${esc(x.id)}" aria-label="Change to ${x.pay === 'cash' ? 'card' : 'cash'}">→ ${x.pay === 'cash' ? 'Card' : 'Cash'}</button>` : ''}
       ${x.by === me.id || mgmt ? `<button type="button" class="btn-small" data-action="undo-sale" data-id="${esc(x.id)}">Undo</button>` : ''}
     </div>`).join('')}` : '<div class="empty">No sales for this night yet.</div>'}
@@ -356,6 +370,11 @@ export function renderNight(key) {
     ${mgmt ? `<button type="button" class="btn-outline danger" data-action="delete-night" data-key="${esc(key)}">${icons.close(16)} Delete this night${s.count ? ` (${s.count} ${s.count === 1 ? 'sale' : 'sales'})` : ''}</button>
       <p class="muted small">For test sales or mistakes: removes the sales and the cash count, and puts the items back into stock.</p>` : ''}
   </main>`;
+}
+
+function noteLine(x) {
+  if (!x.note) return '';
+  return `<span class="sale-note-line ${x.noteDone ? 'done' : ''}">${x.noteDone ? '✓ ' : ''}“${esc(x.note)}”</span>`;
 }
 
 export function diffText(counted, should) {

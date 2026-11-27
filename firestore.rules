@@ -134,7 +134,8 @@ service cloud.firestore {
       match /sales/{saleId} {
         allow read: if isMember(bandId);
         allow create: if isMember(bandId) && request.resource.data.by == request.auth.uid;
-        allow update: if isMgmt(bandId);
+        // MGMT can change anything; every member can add or tick off a note (e.g. "swapped M for L")
+        allow update: if isMgmt(bandId) || (isMember(bandId) && onlyChanges(['note', 'noteDone', 'noteBy']));
         allow delete: if isMgmt(bandId) || (isMember(bandId) && resource.data.by == request.auth.uid);
       }
       // Stock log ("Recent changes"): who changed which stock, when. Saved together with each change.

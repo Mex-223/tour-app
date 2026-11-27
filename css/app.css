@@ -607,3 +607,12 @@ a.prod-card:hover { border-color: #3A3F46; }
 .stock-detail .colour-chip { min-height: 42px; }
 .sell-seg .sold-tab:not(.on) { color: var(--red-text); }
 .sell-seg { flex-wrap: wrap; }
+
+/* Sale notes ("swapped M for L") */
+.sale-note-line { font-size: 13px; color: var(--amber); }
+.sale-note-line.done { color: var(--faint); }
+.sale-note input { min-height: 42px; }
+.notes-box { display: flex; flex-direction: column; gap: 8px; border-color: #6B5220; background: #1F1B10; }
+.note-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.note-row b { color: var(--amber); font-weight: 600; }
+.sale-row .btn-small { flex: none; }

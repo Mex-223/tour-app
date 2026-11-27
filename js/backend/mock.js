@@ -224,6 +224,13 @@ export const backend = {
       delete mlist(b, 'nights')[key];
     }, opt);
   },
+  async setSaleNote(b, saleId, fields) {
+    if (!isMember(b)) deny();
+    const L = mlist(b, 'sales');
+    if (!L[saleId]) return;
+    L[saleId] = { ...L[saleId], ...clone(fields) };
+    changed();
+  },
   async saveNight(b, key, data) {
     if (!isMember(b)) deny();
     const L = mlist(b, 'nights');

@@ -214,6 +214,10 @@ export const backend = {
       batch.delete(ref('nights', key));
     }, opt);
   },
+  // Note on a sale (any member): only note fields change
+  async setSaleNote(bandId, saleId, fields) {
+    w(() => updateDoc(sub(bandId, 'sales', saleId), fields));
+  },
   async saveNight(bandId, key, data) {
     w(() => setDoc(sub(bandId, 'nights', key), { ...data, updatedAt: serverTimestamp() }, { merge: true }));
   },

@@ -8,8 +8,8 @@
 //
 // RELEASING A NEW VERSION: change VERSION (and NOTES) below. That change is
 // what tells phones there is something new.
-const VERSION = '1.11.1';
-const NOTES = 'Merch: one photo per product (for all colours).';
+const VERSION = '1.12.0';
+const NOTES = 'Merch: add a note to a sale (e.g. swapped M for L). Notes show in the night report to fix the stock after the show.';
 
 const CACHE = `tour-app-${VERSION}`;
 const SHELL = [

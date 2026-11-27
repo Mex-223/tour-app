@@ -110,7 +110,21 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       }
       if (!c.items.length) state.sellGiven = null;
     },
-    'cart-clear': () => { cartFor(merchBand()).items = []; state.sellGiven = null; },
+    'cart-clear': () => { cartFor(merchBand()).items = []; state.sellGiven = null; state.saleNote = ''; },
+    'sale-note': (el) => {
+      const bandId = merchBand();
+      const x = salesOf(bandId).find((y) => y.id === el.dataset.id);
+      if (!x) return 'none';
+      const v = prompt('Note for this sale (e.g. "swapped M for L"). Leave empty to remove it.', x.note || '');
+      if (v === null) return 'none';
+      const note = v.trim().slice(0, 120);
+      run(async () => { await backend().setSaleNote(bandId, x.id, { note, noteDone: false, noteBy: me.name }); toast(note ? 'Note saved.' : 'Note removed.'); });
+      return 'none';
+    },
+    'sale-note-done': (el) => {
+      run(async () => { await backend().setSaleNote(merchBand(), el.dataset.id, { noteDone: true, noteBy: me.name }); toast('Ticked off.'); });
+      return 'none';
+    },
     'cart-remove': (el) => { const c = cartFor(merchBand()); c.items.splice(Number(el.dataset.i), 1); },
     charge: () => {
       const bandId = merchBand();
@@ -139,11 +153,13 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const ev = key.startsWith('d-') ? null : key;
       const sale = {
         at: local, date: key.startsWith('d-') ? key.slice(2) : local.slice(0, 10), eventId: ev, night: key,
-        by: me.id, byName: me.name, pay, loc, items, discount, total
+        by: me.id, byName: me.name, pay, loc, items, discount, total,
+        ...(String(state.saleNote || '').trim() ? { note: String(state.saleNote).trim().slice(0, 120), noteDone: false } : {})
       };
       const moves = items.map((i) => ({ pid: i.pid, cid: i.cid, loc: i.loc, size: i.size, n: -1 }));
       const id = backend().newId();
-      state.sold = { band: bandId, saleId: id, total, items: cart.items.map((i) => ({ ...i })) };
+      state.sold = { band: bandId, saleId: id, total, items: cart.items.map((i) => ({ ...i })), note: state.saleNote || '' };
+      state.saleNote = '';
       state.cart = { band: bandId, items: [] };
       state.sellGiven = null;
       backend().recordSale(bandId, id, sale, moves, { logs: saleLogs(id, sale) }).catch((err) => toast(err.message || 'Could not save the sale.'));
@@ -157,6 +173,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
       const s = salesOf(bandId).find((x) => x.id === sold.saleId);
       state.sold = null;
       state.cart = { band: bandId, items: sold.items.map((i) => ({ ...i })) };
+      state.saleNote = sold.note || '';
       if (s) backend().undoSale(bandId, s.id, backMoves(bandId, [s]), { dropLogs: saleLogIds(s.id, s.items, s.loc) }).catch((err) => toast(err.message || 'Could not undo.'));
       toast('Sale undone. The items are back in the cart.');
       return undefined;
@@ -345,7 +362,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
     const prods = Object.fromEntries(products(bandId).map((p) => [p.id, p]));
     const de = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
     const r2 = (n) => Math.round(n * 100) / 100;
-    const rows = [['Date', 'Time', 'Show', 'Product', 'Colour', 'Size', 'Price', 'Payment', 'Sold by']];
+    const rows = [['Date', 'Time', 'Show', 'Product', 'Colour', 'Size', 'Price', 'Payment', 'Sold by', 'Note']];
     const T = { total: 0, card: 0, cash: 0, items: 0, cost: 0, costKnown: true };
     list.forEach((x) => {
       const t = nightTitle(bandId, nightKeyOf(x));
@@ -357,7 +374,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
         T.items += 1;
         const p = prods[i.pid];
         if (p && p.cost != null) T.cost += p.cost; else T.costKnown = false;
-        rows.push([date, time, t.place, i.name, i.colour || '', i.size && i.size !== 'One size' ? i.size : '', Number(i.price) || 0, pay, x.byName || '']);
+        rows.push([date, time, t.place, i.name, i.colour || '', i.size && i.size !== 'One size' ? i.size : '', Number(i.price) || 0, pay, x.byName || '', x.note ? x.note + (x.noteDone ? ' (fixed)' : '') : '']);
       });
       if (x.discount) rows.push([date, time, t.place, 'Bundle discount', '', '', -x.discount, pay, x.byName || '']);
     });
@@ -598,6 +615,7 @@ export function installMerch({ getBackend, render, toast, run, actions, forms })
   });
 
   document.addEventListener('input', (ev) => {
+    if (ev.target.name === 'saleNote') { state.saleNote = ev.target.value; return; }
     const form = ev.target.closest && ev.target.closest('form[data-form="night"]');
     if (form) {
       const f = new FormData(form);
